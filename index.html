@@ -250,6 +250,12 @@ body { background: var(--bg); }
 
 .rev-row { background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; position: relative; }
 .rev-row.unclear { border-color: var(--accent); background: #FFFBF6; }
+.rev-row.dup { opacity: .55; border-color: var(--line); background: var(--bg2); }
+.rev-row.dup input, .rev-row.dup select { background: var(--bg2) !important; color: var(--muted); }
+.dup-badge { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--muted); background: var(--line); border-radius: 6px; padding: 2px 8px; margin-bottom: 6px; letter-spacing: .02em; }
+.dup-section-head { font-size: 12px; color: var(--muted); margin: 14px 0 8px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; align-items: center; justify-content: space-between; }
+.dup-toggle { background: none; border: none; color: var(--primary); font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 12px; cursor: pointer; padding: 0; }
+.force-add-btn { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 11.5px; font-family: 'Hanken Grotesk'; font-weight: 600; color: var(--muted); cursor: pointer; margin-top: 6px; }
 .rev-row .rev-top { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .rev-row .rev-concept { flex: 1; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font-family: 'Hanken Grotesk'; font-size: 13.5px; outline: none; background: var(--bg); }
 .rev-row .rev-amt { width: 92px; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 13.5px; outline: none; text-align: right; background: var(--bg); }
@@ -791,13 +797,14 @@ body { background: var(--bg); }
         openModal({ date: todayISO(), statusHTML: '<div class="scan-status"><div>No detecté ningún gasto en la imagen. Rellénalo a mano.</div></div>' });
       } else if (list.length === 1) {
         var x = list[0];
+        var dup = isDuplicate(x);
         var unclear = x.categoryId === "sin_clasificar";
-        openModal({
-          amount: x.amount, date: x.date, note: x.note, categoryId: x.categoryId,
-          statusHTML: unclear
-            ? '<div class="scan-status"><div>Leí el importe, pero no tengo claro de qué es. Escribe el concepto y pulsa “Deducir”, o elige la categoría.</div></div>'
-            : '<div class="scan-status" style="background:#E2EDE6;color:#14543C"><div>✓ Leído y clasificado. Revisa y guarda.</div></div>'
-        });
+        var statusHTML = dup
+          ? '<div class="scan-status" style="background:#FFF8E1;color:#7A5C00"><div>⚠ Este gasto parece que ya está guardado (misma fecha e importe). Revísalo antes de guardar.</div></div>'
+          : (unclear
+              ? '<div class="scan-status"><div>Leí el importe, pero no tengo claro de qué es. Escribe el concepto y pulsa "Deducir", o elige la categoría.</div></div>'
+              : '<div class="scan-status" style="background:#E2EDE6;color:#14543C"><div>✓ Leído y clasificado. Revisa y guarda.</div></div>');
+        openModal({ amount: x.amount, date: x.date, note: x.note, categoryId: x.categoryId, statusHTML: statusHTML });
       } else {
         openMultiReview(list);
       }
@@ -805,6 +812,16 @@ body { background: var(--bg); }
       console.error("scan error", err);
       openModal({ date: todayISO(), statusHTML: '<div class="scan-status"><div>No pude leer la imagen automáticamente. Rellénalo a mano.</div></div>' });
     });
+  }
+
+  // ---------- Anti-duplicados ----------
+  function isDuplicate(candidate) {
+    var matchCount = expenses.filter(function (e) {
+      return e.date === candidate.date && Math.abs(e.amount - candidate.amount) < 0.02;
+    }).length;
+    if (matchCount === 0) return false;
+    // Si ya hay tantas instancias como las que hay en el candidato, es duplicado
+    return true;
   }
 
   // ---------- Multi-movement review ----------
@@ -816,71 +833,123 @@ body { background: var(--bg); }
 
   function openMultiReview(list) {
     editingId = null;
-    var nUnclear = list.filter(function (x) { return x.categoryId === "sin_clasificar"; }).length;
-    var rows = list.map(function (x, i) {
-      var unclear = x.categoryId === "sin_clasificar";
-      return '<div class="rev-row' + (unclear ? " unclear" : "") + '" data-i="' + i + '">' +
-        '<button class="rev-del" data-del="' + i + '">×</button>' +
-        (unclear ? '<div class="rev-flag">⚠ No sé de qué es — corrígelo</div>' : "") +
+    var newItems = [], dupItems = [];
+    list.forEach(function (x) {
+      if (isDuplicate(x)) dupItems.push(x); else newItems.push(x);
+    });
+    var nUnclear = newItems.filter(function (x) { return x.categoryId === "sin_clasificar"; }).length;
+
+    function buildRow(x, i, isDup) {
+      var unclear = !isDup && x.categoryId === "sin_clasificar";
+      var cls = isDup ? " dup" : (unclear ? " unclear" : "");
+      return '<div class="rev-row' + cls + '" data-i="' + i + '" data-dup="' + (isDup ? "1" : "0") + '">' +
+        (isDup
+          ? '<div class="dup-badge">✓ ya guardado</div>'
+          : (unclear ? '<div class="rev-flag">⚠ No sé de qué es — corrígelo</div>' : '')) +
+        (!isDup ? '<button class="rev-del" data-del="' + i + '">×</button>' : '') +
         '<div class="rev-top">' +
-        '<input class="rev-concept" data-f="note" placeholder="¿De qué es?" value="' + esc(x.note) + '">' +
-        '<input class="rev-amt" data-f="amount" inputmode="decimal" value="' + String(x.amount).replace(".", ",") + '">' +
+        '<input class="rev-concept" data-f="note" placeholder="¿De qué es?" value="' + esc(x.note) + '"' + (isDup ? ' readonly' : '') + '>' +
+        '<input class="rev-amt" data-f="amount" inputmode="decimal" value="' + String(x.amount).replace(".", ",") + '"' + (isDup ? ' readonly' : '') + '>' +
         '</div>' +
         '<div class="rev-line2">' +
-        '<select data-f="cat">' + catOptions(x.categoryId) + '</select>' +
-        '<input class="rev-date" data-f="date" type="date" value="' + esc(x.date) + '">' +
-        '</div></div>';
-    }).join("");
+        '<select data-f="cat"' + (isDup ? ' disabled' : '') + '>' + catOptions(x.categoryId) + '</select>' +
+        '<input class="rev-date" data-f="date" type="date" value="' + esc(x.date) + '"' + (isDup ? ' readonly' : '') + '>' +
+        '</div>' +
+        (isDup ? '<button class="force-add-btn" data-force="1">Añadir igualmente</button>' : '') +
+        '</div>';
+    }
+
+    var newRows = newItems.map(function (x, i) { return buildRow(x, i, false); }).join("");
+    var dupRows = dupItems.map(function (x, i) { return buildRow(x, newItems.length + i, true); }).join("");
+    var dupSection = dupItems.length > 0
+      ? '<div class="dup-section-head"><span>' + dupItems.length + ' ya guardado' + (dupItems.length > 1 ? 's' : '') + ' (omitidos)</span>' +
+        '<button class="dup-toggle" id="dupToggle">Ver ▾</button></div>' +
+        '<div id="dupList" style="display:none">' + dupRows + '</div>'
+      : '';
+
+    var countMsg = newItems.length > 0
+      ? 'Detecté <b>' + newItems.length + '</b> nuevo' + (newItems.length !== 1 ? 's' : '')
+      : 'Todos los movimientos ya están guardados';
+    if (nUnclear) countMsg += ' · <span style="color:var(--accent)">' + nUnclear + ' sin clasificar</span>';
 
     var sheet = document.getElementById("sheet");
     sheet.innerHTML =
       '<div class="grab"></div>' +
       '<h2>Revisar movimientos</h2>' +
-      '<div class="rev-count">Detecté <b>' + list.length + '</b> gasto' + (list.length > 1 ? "s" : "") +
-      (nUnclear ? ' · <span style="color:var(--accent)">' + nUnclear + ' sin clasificar</span>' : "") + '. Revisa y añade.</div>' +
-      '<div id="revList">' + rows + '</div>' +
+      '<div class="rev-count">' + countMsg + '</div>' +
+      '<div id="revList">' + newRows + '</div>' +
+      dupSection +
       '<div class="sheet-actions">' +
-      '<button class="btn save-btn" id="addAllBtn">Añadir ' + list.length + ' gasto' + (list.length > 1 ? "s" : "") + '</button>' +
+      (newItems.length > 0
+        ? '<button class="btn save-btn" id="addAllBtn">Añadir ' + newItems.length + ' nuevo' + (newItems.length !== 1 ? 's' : '') + '</button>'
+        : '<button class="btn btn-ghost" id="addAllBtn" style="flex:1" onclick="closeModal()">Cerrar</button>') +
       '</div>';
 
     document.getElementById("modal").classList.remove("hidden");
+
     document.getElementById("revList").addEventListener("click", function (ev) {
       var d = ev.target.closest("[data-del]");
       if (!d) return;
       var row = d.closest(".rev-row");
       if (row) row.parentNode.removeChild(row);
       var remaining = document.querySelectorAll("#revList .rev-row").length;
-      if (remaining === 0) { closeModal(); return; }
+      if (remaining === 0 && dupItems.length === 0) { closeModal(); return; }
       var btn = document.getElementById("addAllBtn");
-      if (btn) btn.textContent = "Añadir " + remaining + " gasto" + (remaining > 1 ? "s" : "");
+      if (btn && remaining > 0) btn.textContent = "Añadir " + remaining + " nuevo" + (remaining !== 1 ? "s" : "");
+      else if (btn && remaining === 0) { btn.textContent = "Cerrar"; btn.onclick = closeModal; }
     });
-    document.getElementById("addAllBtn").addEventListener("click", addAllFromReview);
+
+    var dupToggle = document.getElementById("dupToggle");
+    if (dupToggle) dupToggle.addEventListener("click", function () {
+      var dl = document.getElementById("dupList");
+      var open = dl.style.display !== "none";
+      dl.style.display = open ? "none" : "block";
+      this.textContent = open ? "Ver ▾" : "Ocultar ▴";
+    });
+
+    // Force-add desde duplicados
+    var dupList = document.getElementById("dupList");
+    if (dupList) dupList.addEventListener("click", function (ev) {
+      var fb = ev.target.closest("[data-force]");
+      if (!fb) return;
+      var row = fb.closest(".rev-row");
+      if (!row) return;
+      row.classList.remove("dup");
+      row.removeAttribute("data-dup");
+      Array.prototype.forEach.call(row.querySelectorAll("input,select"), function (el) {
+        el.removeAttribute("readonly"); el.removeAttribute("disabled");
+      });
+      fb.parentNode.removeChild(fb);
+      document.getElementById("revList").appendChild(row);
+      var btn = document.getElementById("addAllBtn");
+      var n = document.querySelectorAll("#revList .rev-row").length;
+      if (btn) btn.textContent = "Añadir " + n + " nuevo" + (n !== 1 ? "s" : "");
+    });
+
+    if (newItems.length > 0) document.getElementById("addAllBtn").addEventListener("click", addAllFromReview);
   }
 
   function addAllFromReview() {
     var rows = document.querySelectorAll("#revList .rev-row");
     var added = 0, lastDate = todayISO();
     Array.prototype.forEach.call(rows, function (row) {
+      if (row.getAttribute("data-dup") === "1") return; // skip duplicados no forzados
       var amt = parseAmount(row.querySelector('[data-f="amount"]').value);
       if (isNaN(amt) || amt <= 0) return;
       var dt = row.querySelector('[data-f="date"]').value || todayISO();
       lastDate = dt;
       expenses.push({
-        id: uid(),
-        amount: amt,
+        id: uid(), amount: amt,
         categoryId: row.querySelector('[data-f="cat"]').value,
         note: row.querySelector('[data-f="note"]').value.trim(),
-        date: dt,
-        createdAt: Date.now()
+        date: dt, createdAt: Date.now()
       });
       added++;
     });
     if (added === 0) { toast("Revisa los importes"); return; }
     var d = new Date(lastDate + "T00:00:00");
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
-    saveData();
-    closeModal();
-    render();
+    saveData(); closeModal(); render();
     toast(added + (added > 1 ? " gastos añadidos ✓" : " gasto añadido ✓"));
   }
 
