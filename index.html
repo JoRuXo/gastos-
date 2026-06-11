@@ -394,6 +394,9 @@ body { background: var(--bg); }
       <button class="btn btn-primary" id="addBtn"><span class="ic">＋</span> Añadir gasto</button>
       <label class="btn btn-ghost" id="scanBtn" for="scanInput"><span class="ic">📷</span> Ticket o captura</label>
     </div>
+    <div class="actions" style="margin-top:0">
+      <label class="btn btn-ghost" style="background:var(--primary-soft);color:var(--primary);border-color:var(--primary-soft)" for="pdfInput"><span class="ic">📄</span> Extracto del banco (PDF)</label>
+    </div>
 
     <div class="tabs">
       <button id="tabResumen" class="on">Resumen</button>
@@ -417,6 +420,7 @@ body { background: var(--bg); }
   </div>
 
   <input type="file" id="scanInput" accept="image/*" class="visually-hidden">
+  <input type="file" id="pdfInput" accept=".pdf,application/pdf" class="visually-hidden">
   <input type="file" id="csvInput" accept=".csv,text/csv" class="visually-hidden">
   <div class="toast" id="toast"></div>
 </div>
@@ -1150,7 +1154,92 @@ body { background: var(--bg); }
     });
   }
 
-  // ---------- Anti-duplicados ----------
+  // ---------- Importar extracto PDF del banco ----------
+  function pdfPrompt() {
+    var ids = CATS.filter(function (c) { return c.id !== "sin_clasificar"; })
+      .map(function (c) { return c.id + " (" + c.label + ")"; }).join(", ");
+    return "Eres un asistente que registra gastos personales. Este documento es un extracto bancario del banco Santander España. " +
+      "Extrae TODOS los gastos (cargos, compras, pagos, salidas de dinero). Ignora ingresos, abonos, nóminas, devoluciones y transferencias recibidas. " +
+      "Devuelve ÚNICAMENTE JSON válido, sin markdown ni texto extra, con esta forma exacta: " +
+      '{"movimientos":[{"importe": number, "fecha": "YYYY-MM-DD" | null, "concepto": "texto" | null, "categoria": "id" | null, "seguro": true | false}]}. ' +
+      "Reglas: importe siempre POSITIVO, número con punto decimal (ej. 12.45). " +
+      "fecha en formato YYYY-MM-DD. " +
+      "concepto = descripción del movimiento tal como aparece en el extracto. " +
+      "categoria = el id que MEJOR encaje de esta lista: " + ids + ". " +
+      "El usuario vive en Aalsmeer (Países Bajos) y a veces gasta en Valencia (España). " +
+      "Reglas de clasificación prioritarias: si el concepto contiene TGSS o Seguridad Social → tramites; Cetelem → coche; Albert Heijn, Jumbo, Lidl, Aldi, Plus → super; NS, GVB, OV-chipkaart → transporte; Spotify, Netflix, HBO, Disney, Prime → suscripciones; Apotheek, farmacia, tandarts, OOM → salud; Vueling, Ryanair, KLM, Flixbus, Renfe → viajes. " +
+      "Si el concepto es un comercio que no reconoces, USA la búsqueda web para identificarlo. " +
+      'Pon "seguro": true solo si estás razonablemente seguro de la categoría. ' +
+      'Si no logras saber de qué es, usa "categoria": null y "seguro": false. ' +
+      'Si no hay ningún gasto, devuelve {"movimientos":[]}. ' +
+      "IMPORTANTE: tu salida debe ser ÚNICAMENTE el objeto JSON, sin texto antes ni después.";
+  }
+
+  function callPdfAPI(file) {
+    return fileToBase64(file).then(function (b64) {
+      return fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4000,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: b64 }
+              },
+              { type: "text", text: pdfPrompt() }
+            ]
+          }]
+        })
+      });
+    }).then(function (res) { return res.json(); });
+  }
+
+  function handlePDF(file) {
+    if (!file) return;
+    // Mostrar spinner mientras procesa
+    var sheet = document.getElementById("sheet");
+    document.getElementById("modal").classList.remove("hidden");
+    sheet.innerHTML =
+      '<div class="grab"></div>' +
+      '<h2>Extracto del banco</h2>' +
+      '<div class="scan-status"><div class="spinner"></div><div>Leyendo el PDF y clasificando los movimientos… puede tardar 15-30 segundos según el tamaño.</div></div>';
+
+    callPdfAPI(file).then(function (data) {
+      if (!data || data.error || !data.content) throw new Error("respuesta vacía");
+      var text = data.content.map(function (b) { return b.type === "text" ? b.text : ""; }).join("\n");
+      var clean = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      var parsed = JSON.parse(extractJsonObject(clean));
+      var list = (parsed.movimientos || []).map(mapMovement).filter(function (x) { return x.amount > 0; });
+
+      if (list.length === 0) {
+        sheet.innerHTML =
+          '<div class="grab"></div>' +
+          '<h2>Extracto del banco</h2>' +
+          '<div class="scan-status"><div>No encontré ningún gasto en el PDF. Comprueba que es un extracto del Santander.</div></div>' +
+          '<div class="sheet-actions"><button class="btn btn-ghost" id="closePdfBtn" style="flex:1">Cerrar</button></div>';
+        document.getElementById("closePdfBtn").addEventListener("click", closeModal);
+      } else if (list.length === 1) {
+        var x = list[0];
+        openModal({ amount: x.amount, date: x.date, note: x.note, categoryId: x.categoryId,
+          statusHTML: '<div class="scan-status" style="background:#E2EDE6;color:#14543C"><div>✓ 1 movimiento leído. Revisa y guarda.</div></div>' });
+      } else {
+        openMultiReview(list);
+      }
+    }).catch(function (err) {
+      console.error("pdf error", err);
+      sheet.innerHTML =
+        '<div class="grab"></div>' +
+        '<h2>Extracto del banco</h2>' +
+        '<div class="scan-status"><div>No pude leer el PDF. Asegúrate de que no está protegido con contraseña e inténtalo de nuevo.</div></div>' +
+        '<div class="sheet-actions"><button class="btn btn-ghost" id="closePdfBtn" style="flex:1">Cerrar</button></div>';
+      document.getElementById("closePdfBtn").addEventListener("click", closeModal);
+    });
+  }
   function isDuplicate(candidate) {
     var matchCount = expenses.filter(function (e) {
       return e.date === candidate.date && Math.abs(e.amount - candidate.amount) < 0.02;
@@ -1516,6 +1605,11 @@ body { background: var(--bg); }
       var f = ev.target.files && ev.target.files[0];
       this.value = "";
       handleScan(f);
+    });
+    document.getElementById("pdfInput").addEventListener("change", function (ev) {
+      var f = ev.target.files && ev.target.files[0];
+      this.value = "";
+      if (f) handlePDF(f);
     });
     document.getElementById("scrim").addEventListener("click", closeModal);
     document.getElementById("importCsvBtn").addEventListener("click", function () {
