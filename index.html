@@ -70,6 +70,7 @@ body { background: var(--bg); }
 }
 .brand h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 19px; letter-spacing: -.01em; }
 .brand p { font-size: 11.5px; color: var(--muted); margin-top: -1px; }
+.topbar-actions { display: flex; gap: 8px; }
 .icon-btn {
   width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--surface); color: var(--ink); font-size: 16px; cursor: pointer;
@@ -112,6 +113,21 @@ body { background: var(--bg); }
 }
 .hero .split .pill .k { font-size: 10.5px; opacity: .8; letter-spacing: .03em; text-transform: uppercase; }
 .hero .split .pill .v { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; margin-top: 1px; font-variant-numeric: tabular-nums; }
+
+/* ---------- Presupuesto progress bar ---------- */
+.budget-bar-wrap {
+  margin-top: 14px; position: relative; z-index: 1;
+}
+.budget-bar-labels {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; opacity: .85; margin-bottom: 6px;
+}
+.budget-bar-track {
+  height: 6px; background: rgba(255,255,255,.18); border-radius: 6px; overflow: hidden;
+}
+.budget-bar-fill {
+  height: 100%; border-radius: 6px; transition: width .5s ease, background .4s ease;
+}
 
 /* ---------- Actions ---------- */
 .actions { display: flex; gap: 10px; margin: 14px 0 4px; }
@@ -188,6 +204,39 @@ body { background: var(--bg); }
 .edit-hint { font-size: 11.5px; color: var(--faint); text-align: center; margin: 0 0 12px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+/* ---------- Búsqueda ---------- */
+.search-box {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px;
+  padding: 10px 14px; margin-bottom: 14px; transition: border-color .15s;
+}
+.search-box:focus-within { border-color: var(--primary); }
+.search-box span { font-size: 15px; color: var(--faint); flex-shrink: 0; }
+.search-box input {
+  border: none; outline: none; background: none;
+  font-family: 'Hanken Grotesk'; font-size: 14px; color: var(--ink); width: 100%;
+}
+.search-box input::placeholder { color: var(--faint); }
+.search-clear { background: none; border: none; color: var(--faint); font-size: 16px; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
+
+/* ---------- Vista anual ---------- */
+.year-total {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 32px;
+  color: var(--primary); margin-bottom: 4px; font-variant-numeric: tabular-nums;
+}
+.year-subtitle { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+.month-bar-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px; cursor: pointer; transition: opacity .15s;
+}
+.month-bar-row:active { opacity: .7; }
+.month-bar-lbl { font-size: 12.5px; font-weight: 500; color: var(--muted); width: 36px; flex-shrink: 0; text-transform: capitalize; }
+.month-bar-lbl.current { color: var(--primary); font-weight: 700; }
+.month-bar-track { flex: 1; height: 8px; background: var(--bg2); border-radius: 6px; overflow: hidden; }
+.month-bar-fill { height: 100%; border-radius: 6px; background: var(--primary); transition: width .5s ease; }
+.month-bar-fill.current { background: var(--accent); }
+.month-bar-amt { font-family: 'Fraunces', serif; font-size: 13px; font-weight: 600; color: var(--ink); width: 70px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.month-bar-amt.empty { color: var(--faint); font-family: 'Hanken Grotesk'; font-weight: 400; font-size: 12px; }
+
 /* Empty state */
 .empty { text-align: center; padding: 38px 20px; color: var(--muted); }
 .empty .big { font-size: 40px; margin-bottom: 10px; }
@@ -236,6 +285,13 @@ body { background: var(--bg); }
 .sheet-actions .btn { padding: 15px; }
 .save-btn { background: var(--primary); color: #fff; }
 .del-btn { background: var(--accent-soft); color: var(--danger); border: 1px solid #F2D6C4; flex: 0 0 54px; }
+.cancel-all-btn { background: var(--accent-soft); color: var(--danger); border: 1px solid #F2D6C4; }
+
+/* Recurrente toggle */
+.recur-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+.recur-toggle label { font-size: 13.5px; font-weight: 500; cursor: pointer; flex: 1; }
+.recur-toggle input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.recur-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-soft); color: var(--primary); border-radius: 8px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
 
 .scan-status { display: flex; align-items: center; gap: 12px; background: var(--accent-soft); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; font-size: 13.5px; color: #93501e; }
 .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(147,80,30,.25); border-top-color: #93501e; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
@@ -266,6 +322,25 @@ body { background: var(--bg); }
 .rev-flag { font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
 .rev-count { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
 
+/* Recurrentes banner */
+.recur-banner { background: var(--primary-soft); border: 1.5px solid var(--primary); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 14px; }
+.recur-banner h4 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 15px; color: var(--primary); margin-bottom: 6px; }
+.recur-banner p { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; line-height: 1.45; }
+.recur-banner-actions { display: flex; gap: 8px; }
+.recur-banner-actions button { flex: 1; border: none; border-radius: 10px; padding: 10px; font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 13px; cursor: pointer; }
+.recur-yes { background: var(--primary); color: #fff; }
+.recur-no { background: var(--line); color: var(--muted); }
+
+/* Ajustes panel */
+.settings-panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px; margin-bottom: 14px; }
+.settings-panel h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; margin-bottom: 14px; }
+.settings-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.settings-row label { font-size: 13.5px; font-weight: 500; flex: 1; }
+.settings-row .settings-input { width: 110px; border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 12px; font-family: 'Hanken Grotesk'; font-size: 14px; color: var(--ink); outline: none; text-align: right; }
+.settings-row .settings-input:focus { border-color: var(--primary); }
+.settings-save { background: var(--primary); color: #fff; border: none; border-radius: 10px; padding: 11px 20px; font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 13.5px; cursor: pointer; width: 100%; }
+.settings-save:active { transform: scale(.98); }
+
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
   background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px; font-size: 13px; font-weight: 500;
@@ -285,7 +360,10 @@ body { background: var(--bg); }
           <p>Aalsmeer · en euros</p>
         </div>
       </div>
-      <button class="icon-btn" id="exportBtn" title="Exportar">⬇</button>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="settingsBtn" title="Ajustes">⚙️</button>
+        <button class="icon-btn" id="exportBtn" title="Exportar">⬇</button>
+      </div>
     </div>
 
     <div class="hero">
@@ -301,6 +379,15 @@ body { background: var(--bg); }
         <div class="pill"><div class="k">Variables</div><div class="v" id="varTotal">0 €</div></div>
         <div class="pill"><div class="k">Apuntes</div><div class="v" id="countTotal">0</div></div>
       </div>
+      <div id="budgetBarWrap" class="budget-bar-wrap" style="display:none">
+        <div class="budget-bar-labels">
+          <span id="budgetBarLbl">Presupuesto</span>
+          <span id="budgetBarPct"></span>
+        </div>
+        <div class="budget-bar-track">
+          <div class="budget-bar-fill" id="budgetBarFill"></div>
+        </div>
+      </div>
     </div>
 
     <div class="actions">
@@ -311,13 +398,13 @@ body { background: var(--bg); }
     <div class="tabs">
       <button id="tabResumen" class="on">Resumen</button>
       <button id="tabMov">Movimientos</button>
+      <button id="tabAnio">Año</button>
     </div>
 
     <main id="content"></main>
 
     <div class="foot">
       <button id="pasteBtn">📋 Pegar movimientos (desde el chat)</button>
-      <button id="exportBtn2" style="display:block;margin:10px auto 0">Exportar copia de seguridad (CSV)</button>
       <p>Tus datos se guardan en este dispositivo. Exporta de vez en cuando para tener un respaldo.</p>
     </div>
   </div>
@@ -341,6 +428,7 @@ body { background: var(--bg); }
 
   // ---------- Config ----------
   var STORAGE_KEY = "gastos_data_v1";
+  var SETTINGS_KEY = "gastos_settings_v1";
   var CATS = [
     { id: "vivienda",      label: "Habitación / Vivienda", emoji: "🏠", color: "#14543C", type: "fija" },
     { id: "suministros",   label: "Suministros y casa",    emoji: "💡", color: "#3A6B5A", type: "fija" },
@@ -365,6 +453,7 @@ body { background: var(--bg); }
 
   // ---------- State ----------
   var expenses = [];
+  var settings = { budget: 0 }; // budget=0 significa sin límite
   var view = "resumen";
   var now = new Date();
   var viewYear = now.getFullYear();
@@ -372,6 +461,7 @@ body { background: var(--bg); }
   var editingId = null;
   var formCat = "super";
   var openCats = {};
+  var searchQuery = "";
   var hasStorage = (function () { try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return true; } catch (e) { return false; } })();
 
   // ---------- Helpers ----------
@@ -411,7 +501,6 @@ body { background: var(--bg); }
   function parseAmount(str) {
     if (!str) return NaN;
     var s = String(str).trim().replace(/\s/g, "").replace(/€/g, "");
-    // handle both 1.234,56 and 1234.56
     if (s.indexOf(",") > -1 && s.indexOf(".") > -1) {
       s = s.replace(/\./g, "").replace(",", ".");
     } else {
@@ -441,6 +530,10 @@ body { background: var(--bg); }
       var raw = hasStorage ? localStorage.getItem(STORAGE_KEY) : null;
       expenses = raw ? (JSON.parse(raw) || []) : [];
     } catch (e) { expenses = []; }
+    try {
+      var sraw = hasStorage ? localStorage.getItem(SETTINGS_KEY) : null;
+      settings = sraw ? Object.assign({ budget: 0 }, JSON.parse(sraw)) : { budget: 0 };
+    } catch (e) { settings = { budget: 0 }; }
     return Promise.resolve();
   }
   function saveData() {
@@ -451,6 +544,11 @@ body { background: var(--bg); }
       toast("No se pudo guardar 😕");
     }
     return Promise.resolve();
+  }
+  function saveSettings() {
+    try {
+      if (hasStorage) localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (e) {}
   }
 
   // ---------- Selectors / computations ----------
@@ -477,6 +575,22 @@ body { background: var(--bg); }
     document.getElementById("fixedTotal").textContent = eurShort(fixed);
     document.getElementById("varTotal").textContent = eurShort(vari);
     document.getElementById("countTotal").textContent = me.length;
+
+    // Barra de presupuesto
+    var budget = settings.budget || 0;
+    var wrap = document.getElementById("budgetBarWrap");
+    if (budget > 0) {
+      wrap.style.display = "block";
+      var pct = Math.min(total / budget * 100, 100);
+      var overBudget = total > budget;
+      var fillColor = pct < 75 ? "rgba(255,255,255,.7)" : (pct < 100 ? "#F5B942" : "#E05C52");
+      document.getElementById("budgetBarFill").style.width = pct.toFixed(1) + "%";
+      document.getElementById("budgetBarFill").style.background = fillColor;
+      document.getElementById("budgetBarLbl").textContent = overBudget ? "⚠ Presupuesto superado" : "Presupuesto mensual";
+      document.getElementById("budgetBarPct").textContent = eur(total) + " / " + eur(budget);
+    } else {
+      wrap.style.display = "none";
+    }
   }
 
   // ---------- Render: donut ----------
@@ -551,10 +665,33 @@ body { background: var(--bg); }
       if (a.date !== b.date) return a.date < b.date ? 1 : -1;
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
-    var content = document.getElementById("content");
-    if (me.length === 0) { content.innerHTML = emptyState(); return; }
 
-    var html = '<div class="edit-hint">✎ Toca un gasto para editarlo o borrarlo</div>', curDay = null;
+    // Aplicar búsqueda
+    if (searchQuery) {
+      var q = searchQuery.toLowerCase();
+      me = me.filter(function (e) {
+        var c = cat(e.categoryId);
+        return (e.note || "").toLowerCase().indexOf(q) > -1 ||
+               c.label.toLowerCase().indexOf(q) > -1 ||
+               c.emoji.indexOf(q) > -1;
+      });
+    }
+
+    var content = document.getElementById("content");
+    var searchHTML = '<div class="search-box">' +
+      '<span>🔍</span>' +
+      '<input id="searchInput" type="text" placeholder="Buscar por concepto o categoría…" value="' + esc(searchQuery) + '">' +
+      (searchQuery ? '<button class="search-clear" id="searchClear">✕</button>' : '') +
+      '</div>';
+
+    if (me.length === 0) {
+      content.innerHTML = searchHTML + emptyState();
+      wireSearch();
+      return;
+    }
+
+    var html = '<div class="edit-hint">✎ Toca un gasto para editarlo o borrarlo</div>';
+    var curDay = null;
     me.forEach(function (e) {
       if (e.date !== curDay) {
         if (curDay !== null) html += "</div>";
@@ -562,14 +699,80 @@ body { background: var(--bg); }
         html += '<div class="day-group"><div class="day-label">' + esc(dayLabel(e.date)) + "</div>";
       }
       var c = cat(e.categoryId);
+      var recurBadge = e.recurrent ? ' <span class="recur-badge">🔁 recurrente</span>' : '';
       html += '<div class="item" data-id="' + e.id + '">' +
         '<div class="ico" style="background:' + c.color + '22">' + c.emoji + '</div>' +
-        '<div class="mid"><div class="t">' + esc(e.note || c.label) + '</div>' +
+        '<div class="mid"><div class="t">' + esc(e.note || c.label) + recurBadge + '</div>' +
         '<div class="s">' + esc(c.label) + '</div></div>' +
         '<div class="amt">' + eur(e.amount) + '</div><div class="chev">›</div></div>';
     });
     if (curDay !== null) html += "</div>";
-    content.innerHTML = html;
+    content.innerHTML = searchHTML + html;
+    wireSearch();
+  }
+
+  function wireSearch() {
+    var inp = document.getElementById("searchInput");
+    if (inp) inp.addEventListener("input", function () {
+      searchQuery = this.value;
+      renderMovimientos();
+    });
+    var clr = document.getElementById("searchClear");
+    if (clr) clr.addEventListener("click", function () {
+      searchQuery = "";
+      renderMovimientos();
+    });
+  }
+
+  // ---------- Render: vista anual ----------
+  function renderAnio() {
+    var content = document.getElementById("content");
+    var yearExpenses = expenses.filter(function (e) {
+      return (e.date || "").slice(0, 4) === String(viewYear);
+    });
+    var yearTotal = sum(yearExpenses);
+
+    var maxVal = 0;
+    var monthTotals = [];
+    for (var m = 0; m < 12; m++) {
+      var key = monthKey(viewYear, m);
+      var mExp = expenses.filter(function (e) { return (e.date || "").slice(0, 7) === key; });
+      var mTotal = sum(mExp);
+      monthTotals.push(mTotal);
+      if (mTotal > maxVal) maxVal = mTotal;
+    }
+
+    var currentMonthKey = monthKey(now.getFullYear(), now.getMonth());
+    var bars = monthTotals.map(function (mTotal, m) {
+      var key = monthKey(viewYear, m);
+      var isCurrent = key === currentMonthKey;
+      var pct = maxVal > 0 ? (mTotal / maxVal * 100) : 0;
+      var lbl = monthName(m).slice(0, 3);
+      return '<div class="month-bar-row" data-month="' + m + '">' +
+        '<span class="month-bar-lbl' + (isCurrent ? ' current' : '') + '">' + lbl + '</span>' +
+        '<div class="month-bar-track"><div class="month-bar-fill' + (isCurrent ? ' current' : '') + '" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+        (mTotal > 0
+          ? '<span class="month-bar-amt">' + eur(mTotal) + '</span>'
+          : '<span class="month-bar-amt empty">—</span>') +
+        '</div>';
+    }).join("");
+
+    content.innerHTML =
+      '<div class="card">' +
+      '<div class="year-total">' + eur(yearTotal) + '</div>' +
+      '<div class="year-subtitle">Total gastado en ' + viewYear + ' · toca un mes para verlo</div>' +
+      bars +
+      '</div>';
+
+    // Click en una fila → navegar a ese mes
+    content.querySelectorAll(".month-bar-row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var m = parseInt(this.getAttribute("data-month"), 10);
+        viewMonth = m;
+        view = "resumen";
+        render();
+      });
+    });
   }
 
   function emptyState() {
@@ -582,7 +785,10 @@ body { background: var(--bg); }
     renderHeader();
     document.getElementById("tabResumen").classList.toggle("on", view === "resumen");
     document.getElementById("tabMov").classList.toggle("on", view === "movimientos");
-    if (view === "resumen") renderResumen(); else renderMovimientos();
+    document.getElementById("tabAnio").classList.toggle("on", view === "anio");
+    if (view === "resumen") renderResumen();
+    else if (view === "movimientos") renderMovimientos();
+    else renderAnio();
   }
 
   // ---------- Modal ----------
@@ -600,6 +806,7 @@ body { background: var(--bg); }
     var amount = opts.amount != null ? String(opts.amount).replace(".", ",") : "";
     var date = opts.date || todayISO();
     var note = opts.note || "";
+    var isRecurrent = opts.recurrent || false;
 
     var sheet = document.getElementById("sheet");
     sheet.innerHTML =
@@ -613,6 +820,7 @@ body { background: var(--bg); }
       '<div class="field"><label style="display:flex;justify-content:space-between;align-items:center">Categoría <button type="button" class="deduce-btn" id="deduceBtn">🔎 Deducir del concepto</button></label><div class="cat-grid" id="catGrid">' + catGrid(formCat) + '</div></div>' +
       '<div class="field"><label>Concepto (opcional)</label><input id="fNote" class="txt-input" type="text" placeholder="p. ej. Compra Jumbo" value="' + esc(note) + '"></div>' +
       '<div class="field"><label>Fecha</label><input id="fDate" class="date-input" type="date" value="' + esc(date) + '"></div>' +
+      '<div class="recur-toggle"><input type="checkbox" id="fRecurrent"' + (isRecurrent ? ' checked' : '') + '><label for="fRecurrent">🔁 Gasto recurrente (se repetirá cada mes)</label></div>' +
       '<div class="sheet-actions">' +
       (editingId ? '<button class="btn del-btn" id="delBtn">🗑</button>' : "") +
       '<button class="btn save-btn" id="saveBtn">' + (editingId ? "Guardar cambios" : "Guardar gasto") + '</button>' +
@@ -677,16 +885,16 @@ body { background: var(--bg); }
     }
     var note = document.getElementById("fNote").value.trim();
     var date = document.getElementById("fDate").value || todayISO();
+    var recurrent = document.getElementById("fRecurrent") ? document.getElementById("fRecurrent").checked : false;
 
     if (editingId) {
       var ex = expenses.find(function (x) { return x.id === editingId; });
-      if (ex) { ex.amount = amt; ex.categoryId = formCat; ex.note = note; ex.date = date; }
+      if (ex) { ex.amount = amt; ex.categoryId = formCat; ex.note = note; ex.date = date; ex.recurrent = recurrent; }
       toast("Gasto actualizado ✓");
     } else {
-      expenses.push({ id: uid(), amount: amt, categoryId: formCat, note: note, date: date, createdAt: Date.now() });
+      expenses.push({ id: uid(), amount: amt, categoryId: formCat, note: note, date: date, createdAt: Date.now(), recurrent: recurrent });
       toast("Gasto guardado ✓");
     }
-    // jump view to the month of the saved expense
     var d = new Date(date + "T00:00:00");
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
     saveData();
@@ -694,13 +902,102 @@ body { background: var(--bg); }
     render();
   }
 
+  // MEJORA 1: Confirmación antes de borrar
   function deleteCurrent() {
     if (!editingId) return;
+    var ex = expenses.find(function (x) { return x.id === editingId; });
+    var label = ex ? (ex.note || cat(ex.categoryId).label) + " — " + eur(ex.amount) : "este gasto";
+    if (!confirm("¿Eliminar " + label + "?")) return;
     expenses = expenses.filter(function (x) { return x.id !== editingId; });
     saveData();
     closeModal();
     render();
     toast("Gasto eliminado");
+  }
+
+  // ---------- Ajustes ----------
+  function openSettings() {
+    var sheet = document.getElementById("sheet");
+    sheet.innerHTML =
+      '<div class="grab"></div>' +
+      '<h2>Ajustes</h2>' +
+      '<div class="settings-panel" style="box-shadow:none;padding:0;background:none">' +
+      '<h3 style="margin-bottom:12px">Presupuesto mensual</h3>' +
+      '<div class="settings-row">' +
+      '<label>Límite en euros<br><span style="font-size:11.5px;color:var(--faint);font-weight:400">Pon 0 para no tener límite</span></label>' +
+      '<input class="settings-input" id="sBudget" type="text" inputmode="decimal" value="' + (settings.budget > 0 ? String(settings.budget).replace(".", ",") : "") + '" placeholder="0">' +
+      '</div>' +
+      '<button class="settings-save" id="saveSettings">Guardar ajustes</button>' +
+      '</div>';
+    document.getElementById("modal").classList.remove("hidden");
+    document.getElementById("saveSettings").addEventListener("click", function () {
+      var b = parseAmount(document.getElementById("sBudget").value);
+      settings.budget = (!isNaN(b) && b > 0) ? b : 0;
+      saveSettings();
+      closeModal();
+      render();
+      toast("Ajustes guardados ✓");
+    });
+    setTimeout(function () { var i = document.getElementById("sBudget"); if (i) i.focus(); }, 250);
+  }
+
+  // ---------- Gastos recurrentes: comprobar al cambiar de mes ----------
+  function checkRecurrentExpenses() {
+    // Busca recurrentes del mes anterior que no están copiados en el mes actual
+    var prevYear = viewYear, prevMonth = viewMonth - 1;
+    if (prevMonth < 0) { prevMonth = 11; prevYear--; }
+    var prevKey = monthKey(prevYear, prevMonth);
+    var curKey = monthKey(viewYear, viewMonth);
+
+    var prevRecurrent = expenses.filter(function (e) {
+      return e.recurrent && (e.date || "").slice(0, 7) === prevKey;
+    });
+    if (prevRecurrent.length === 0) return;
+
+    // Filtrar los que ya existen en el mes actual (mismo catId + nota + importe)
+    var curExpenses = expenses.filter(function (e) { return (e.date || "").slice(0, 7) === curKey; });
+    var missing = prevRecurrent.filter(function (p) {
+      return !curExpenses.some(function (c) {
+        return c.categoryId === p.categoryId && c.note === p.note && Math.abs(c.amount - p.amount) < 0.02;
+      });
+    });
+    if (missing.length === 0) return;
+
+    // Mostrar banner dentro del contenido
+    var banner = document.createElement("div");
+    banner.className = "recur-banner";
+    banner.id = "recurBanner";
+    var names = missing.map(function (e) { return (e.note || cat(e.categoryId).label) + " (" + eur(e.amount) + ")"; }).join(", ");
+    banner.innerHTML =
+      '<h4>🔁 Gastos recurrentes pendientes</h4>' +
+      '<p>' + missing.length + ' gasto' + (missing.length > 1 ? 's' : '') + ' del mes pasado marcado' + (missing.length > 1 ? 's' : '') + ' como recurrente' + (missing.length > 1 ? 's' : '') + ': ' + esc(names) + '</p>' +
+      '<div class="recur-banner-actions">' +
+      '<button class="recur-yes" id="recurYes">Copiar al mes actual</button>' +
+      '<button class="recur-no" id="recurNo">No, gracias</button>' +
+      '</div>';
+
+    var content = document.getElementById("content");
+    content.insertBefore(banner, content.firstChild);
+
+    document.getElementById("recurYes").addEventListener("click", function () {
+      missing.forEach(function (p) {
+        var newDate = curKey + "-" + p.date.slice(8, 10);
+        // Verificar que el día existe en el mes actual
+        var testDate = new Date(newDate + "T00:00:00");
+        if (isNaN(testDate.getTime()) || testDate.getMonth() !== viewMonth) {
+          newDate = curKey + "-01";
+        }
+        expenses.push({ id: uid(), amount: p.amount, categoryId: p.categoryId, note: p.note, date: newDate, createdAt: Date.now(), recurrent: true });
+      });
+      saveData();
+      render();
+      toast(missing.length + " gasto" + (missing.length > 1 ? "s copiados" : " copiado") + " ✓");
+    });
+
+    document.getElementById("recurNo").addEventListener("click", function () {
+      var b = document.getElementById("recurBanner");
+      if (b) b.parentNode.removeChild(b);
+    });
   }
 
   // ---------- Scan ticket via API ----------
@@ -821,7 +1118,6 @@ body { background: var(--bg); }
       return e.date === candidate.date && Math.abs(e.amount - candidate.amount) < 0.02;
     }).length;
     if (matchCount === 0) return false;
-    // Si ya hay tantas instancias como las que hay en el candidato, es duplicado
     return true;
   }
 
@@ -881,12 +1177,25 @@ body { background: var(--bg); }
       '<div id="revList">' + newRows + '</div>' +
       dupSection +
       '<div class="sheet-actions">' +
+      // MEJORA 6: Botón "Cancelar todo"
+      (newItems.length > 0 ? '<button class="btn cancel-all-btn" id="cancelAllBtn">Cancelar todo</button>' : '') +
       (newItems.length > 0
         ? '<button class="btn save-btn" id="addAllBtn">Añadir ' + newItems.length + ' nuevo' + (newItems.length !== 1 ? 's' : '') + '</button>'
-        : '<button class="btn btn-ghost" id="addAllBtn" style="flex:1" onclick="closeModal()">Cerrar</button>') +
+        : '<button class="btn btn-ghost" id="addAllBtn" style="flex:1">Cerrar</button>') +
       '</div>';
 
     document.getElementById("modal").classList.remove("hidden");
+
+    // MEJORA 6: cerrar sin guardar nada
+    var cancelAll = document.getElementById("cancelAllBtn");
+    if (cancelAll) cancelAll.addEventListener("click", function () {
+      closeModal();
+      toast("Importación cancelada");
+    });
+
+    // Cerrar si no había nuevos
+    var addAllBtn = document.getElementById("addAllBtn");
+    if (addAllBtn && newItems.length === 0) addAllBtn.addEventListener("click", closeModal);
 
     document.getElementById("revList").addEventListener("click", function (ev) {
       var d = ev.target.closest("[data-del]");
@@ -908,7 +1217,6 @@ body { background: var(--bg); }
       this.textContent = open ? "Ver ▾" : "Ocultar ▴";
     });
 
-    // Force-add desde duplicados
     var dupList = document.getElementById("dupList");
     if (dupList) dupList.addEventListener("click", function (ev) {
       var fb = ev.target.closest("[data-force]");
@@ -934,7 +1242,7 @@ body { background: var(--bg); }
     var rows = document.querySelectorAll("#revList .rev-row");
     var added = 0, lastDate = todayISO();
     Array.prototype.forEach.call(rows, function (row) {
-      if (row.getAttribute("data-dup") === "1") return; // skip duplicados no forzados
+      if (row.getAttribute("data-dup") === "1") return;
       var amt = parseAmount(row.querySelector('[data-f="amount"]').value);
       if (isNaN(amt) || amt <= 0) return;
       var dt = row.querySelector('[data-f="date"]').value || todayISO();
@@ -975,7 +1283,7 @@ body { background: var(--bg); }
     }).catch(function () { onDone(null); });
   }
 
-  // ---------- Paste movements (from chat) ----------
+  // ---------- Paste movements ----------
   function parsePasted(text) {
     var out = [];
     text.split(/\r?\n/).forEach(function (line) {
@@ -1034,10 +1342,10 @@ body { background: var(--bg); }
   // ---------- CSV export ----------
   function exportCSV() {
     if (expenses.length === 0) { toast("No hay nada que exportar"); return; }
-    var rows = [["Fecha", "Categoria", "Tipo", "Concepto", "Importe_EUR"]];
+    var rows = [["Fecha", "Categoria", "Tipo", "Concepto", "Importe_EUR", "Recurrente"]];
     expenses.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (e) {
       var c = cat(e.categoryId);
-      rows.push([e.date, c.label, c.type, (e.note || "").replace(/"/g, "'"), String(e.amount).replace(".", ",")]);
+      rows.push([e.date, c.label, c.type, (e.note || "").replace(/"/g, "'"), String(e.amount).replace(".", ","), e.recurrent ? "sí" : "no"]);
     });
     var csv = rows.map(function (r) {
       return r.map(function (cell) { return '"' + cell + '"'; }).join(";");
@@ -1067,15 +1375,24 @@ body { background: var(--bg); }
   // ---------- Events ----------
   function wire() {
     document.getElementById("prevMonth").addEventListener("click", function () {
-      viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } render();
+      viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      searchQuery = "";
+      render();
+      // Comprobar recurrentes al llegar a un mes nuevo
+      if (view === "movimientos" || view === "resumen") checkRecurrentExpenses();
     });
     document.getElementById("nextMonth").addEventListener("click", function () {
-      viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } render();
+      viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      searchQuery = "";
+      render();
+      if (view === "movimientos" || view === "resumen") checkRecurrentExpenses();
     });
     document.getElementById("tabResumen").addEventListener("click", function () { view = "resumen"; render(); });
     document.getElementById("tabMov").addEventListener("click", function () { view = "movimientos"; render(); });
+    document.getElementById("tabAnio").addEventListener("click", function () { view = "anio"; render(); });
     document.getElementById("addBtn").addEventListener("click", function () { openModal({}); });
     document.getElementById("pasteBtn").addEventListener("click", openPasteSheet);
+    document.getElementById("settingsBtn").addEventListener("click", openSettings);
     document.getElementById("scanInput").addEventListener("change", function (ev) {
       var f = ev.target.files && ev.target.files[0];
       this.value = "";
@@ -1083,10 +1400,8 @@ body { background: var(--bg); }
     });
     document.getElementById("scrim").addEventListener("click", closeModal);
     document.getElementById("exportBtn").addEventListener("click", exportCSV);
-    document.getElementById("exportBtn2").addEventListener("click", exportCSV);
 
     document.getElementById("content").addEventListener("click", function (ev) {
-      // Expandir/colapsar categoría
       var head = ev.target.closest(".catbar-head");
       if (head) {
         var wrap = head.closest(".catbar-wrap");
@@ -1097,27 +1412,31 @@ body { background: var(--bg); }
         }
         return;
       }
-      // Editar desde el detalle de categoría
       var ci = ev.target.closest(".catbar-item");
       if (ci) {
         var id = ci.getAttribute("data-id");
         var e = expenses.find(function (x) { return x.id === id; });
-        if (e) openModal({ id: e.id, amount: e.amount, categoryId: e.categoryId, note: e.note, date: e.date });
+        if (e) openModal({ id: e.id, amount: e.amount, categoryId: e.categoryId, note: e.note, date: e.date, recurrent: e.recurrent });
         return;
       }
-      // Editar desde la lista de movimientos
       var it = ev.target.closest(".item");
       if (!it) return;
       var id2 = it.getAttribute("data-id");
       var e2 = expenses.find(function (x) { return x.id === id2; });
-      if (e2) openModal({ id: e2.id, amount: e2.amount, categoryId: e2.categoryId, note: e2.note, date: e2.date });
+      if (e2) openModal({ id: e2.id, amount: e2.amount, categoryId: e2.categoryId, note: e2.note, date: e2.date, recurrent: e2.recurrent });
     });
   }
 
   // ---------- Init ----------
   wire();
 
-  loadData().then(function () { render(); });
+  loadData().then(function () {
+    render();
+    // Comprobar recurrentes al arrancar si estamos en el mes actual
+    var curKey = monthKey(now.getFullYear(), now.getMonth());
+    var viewKey = monthKey(viewYear, viewMonth);
+    if (curKey === viewKey) checkRecurrentExpenses();
+  });
 })();
 </script>
 </body>
