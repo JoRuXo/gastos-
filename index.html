@@ -405,6 +405,7 @@ body { background: var(--bg); }
 
     <div class="foot">
       <button id="pasteBtn">📋 Pegar movimientos (desde el chat)</button>
+      <button id="importCsvBtn" style="display:block;margin:10px auto 0">📂 Importar backup CSV</button>
       <p>Tus datos se guardan en este dispositivo. Exporta de vez en cuando para tener un respaldo.</p>
     </div>
   </div>
@@ -416,6 +417,7 @@ body { background: var(--bg); }
   </div>
 
   <input type="file" id="scanInput" accept="image/*" class="visually-hidden">
+  <input type="file" id="csvInput" accept=".csv,text/csv" class="visually-hidden">
   <div class="toast" id="toast"></div>
 </div>
 <script>
@@ -1362,7 +1364,87 @@ body { background: var(--bg); }
     toast("CSV descargado ✓");
   }
 
-  // ---------- Toast ----------
+  // ---------- CSV import (backup) ----------
+  function importCSV(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var text = e.target.result;
+      // Quitar BOM si lo hay
+      text = text.replace(/^\uFEFF/, "");
+      var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+      if (lines.length < 2) { toast("El CSV está vacío o no es válido"); return; }
+
+      // Detectar separador: ; o ,
+      var sep = lines[0].indexOf(";") > -1 ? ";" : ",";
+
+      function unquote(s) {
+        s = s.trim();
+        if (s.charAt(0) === '"' && s.charAt(s.length - 1) === '"') s = s.slice(1, -1);
+        return s.replace(/""/g, '"');
+      }
+
+      // Cabecera: "Fecha";"Categoria";"Tipo";"Concepto";"Importe_EUR";"Recurrente"
+      // La importación usa Fecha e Importe_EUR. Categoria la resolvemos por label→id.
+      var labelToId = {};
+      CATS.forEach(function (c) { labelToId[c.label.toLowerCase()] = c.id; });
+
+      var imported = 0, skipped = 0;
+      var newExpenses = [];
+
+      lines.slice(1).forEach(function (line) {
+        var parts = line.split(sep).map(unquote);
+        if (parts.length < 5) return;
+        var fecha = parts[0];
+        var catLabel = parts[1];
+        var concepto = parts[3];
+        var importeStr = parts[4];
+        var recurrente = parts[5] ? parts[5].toLowerCase() === "sí" || parts[5].toLowerCase() === "si" : false;
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
+        var amt = parseAmount(importeStr);
+        if (isNaN(amt) || amt <= 0) return;
+
+        // Resolver categoría por label
+        var catId = labelToId[catLabel.toLowerCase()] || "sin_clasificar";
+
+        // Anti-duplicado: misma fecha + importe + concepto
+        var isDup = expenses.some(function (ex) {
+          return ex.date === fecha &&
+                 Math.abs(ex.amount - amt) < 0.02 &&
+                 (ex.note || "") === concepto;
+        }) || newExpenses.some(function (ex) {
+          return ex.date === fecha &&
+                 Math.abs(ex.amount - amt) < 0.02 &&
+                 (ex.note || "") === concepto;
+        });
+
+        if (isDup) { skipped++; return; }
+
+        newExpenses.push({
+          id: uid(),
+          amount: amt,
+          categoryId: catId,
+          note: concepto,
+          date: fecha,
+          createdAt: Date.now(),
+          recurrent: recurrente
+        });
+        imported++;
+      });
+
+      if (imported === 0) {
+        toast(skipped > 0 ? "Todo ya estaba importado (" + skipped + " duplicados)" : "No se encontraron gastos válidos");
+        return;
+      }
+
+      expenses = expenses.concat(newExpenses);
+      saveData();
+      render();
+      toast(imported + " gasto" + (imported > 1 ? "s importados" : " importado") + (skipped > 0 ? " · " + skipped + " duplicados omitidos" : "") + " ✓");
+    };
+    reader.onerror = function () { toast("No se pudo leer el fichero"); };
+    reader.readAsText(file, "UTF-8");
+  }
   var toastTimer = null;
   function toast(msg) {
     var t = document.getElementById("toast");
@@ -1399,6 +1481,14 @@ body { background: var(--bg); }
       handleScan(f);
     });
     document.getElementById("scrim").addEventListener("click", closeModal);
+    document.getElementById("importCsvBtn").addEventListener("click", function () {
+      document.getElementById("csvInput").click();
+    });
+    document.getElementById("csvInput").addEventListener("change", function (ev) {
+      var f = ev.target.files && ev.target.files[0];
+      this.value = "";
+      if (f) importCSV(f);
+    });
     document.getElementById("exportBtn").addEventListener("click", exportCSV);
 
     document.getElementById("content").addEventListener("click", function (ev) {
