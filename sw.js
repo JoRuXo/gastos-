@@ -1,4 +1,4 @@
-var CACHE = 'mis-gastos-v3';
+var CACHE = 'mis-gastos-v4';
 var STATIC = ['./manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -9,6 +9,7 @@ self.addEventListener('install', function (e) {
       }));
     })
   );
+  // Activarse inmediatamente sin esperar a que se cierren las pestañas
   self.skipWaiting();
 });
 
@@ -19,9 +20,11 @@ self.addEventListener('activate', function (e) {
         keys.filter(function (k) { return k !== CACHE; })
             .map(function (k) { return caches.delete(k); })
       );
+    }).then(function () {
+      // Tomar el control de todas las pestañas abiertas inmediatamente
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', function (e) {
@@ -38,7 +41,7 @@ self.addEventListener('fetch', function (e) {
       url.pathname.endsWith('index.html') ||
       url.pathname.endsWith('gastos-/')) {
     e.respondWith(
-      fetch(e.request).then(function (res) {
+      fetch(e.request, { cache: 'no-store' }).then(function (res) {
         if (res && res.status === 200) {
           var clone = res.clone();
           caches.open(CACHE).then(function (c) { c.put(e.request, clone); });

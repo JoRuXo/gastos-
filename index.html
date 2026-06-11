@@ -421,14 +421,25 @@ body { background: var(--bg); }
   <div class="toast" id="toast"></div>
 </div>
 <script>
-  // Service Worker — se recarga automáticamente cuando hay una versión nueva
+  // Service Worker — forzar actualización inmediata
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').then(function (reg) {
+    // 1. Eliminar todos los service workers viejos
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      regs.forEach(function (r) { r.unregister(); });
+    });
+    // 2. Borrar todas las cachés viejas
+    if (window.caches) {
+      caches.keys().then(function (keys) {
+        keys.forEach(function (k) { caches.delete(k); });
+      });
+    }
+    // 3. Registrar el nuevo service worker
+    navigator.serviceWorker.register('sw.js?v=20260611').then(function (reg) {
       reg.addEventListener('updatefound', function () {
         var nuevo = reg.installing;
         if (!nuevo) return;
         nuevo.addEventListener('statechange', function () {
-          if (nuevo.state === 'activated') {
+          if (nuevo.state === 'activated' && navigator.serviceWorker.controller) {
             window.location.reload();
           }
         });
