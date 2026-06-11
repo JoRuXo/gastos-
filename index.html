@@ -663,32 +663,44 @@ body { background: var(--bg); }
 
   // ---------- Render: movimientos ----------
   function renderMovimientos() {
+    var content = document.getElementById("content");
+
+    // Si el contenedor está vacío (primera vez), crear la estructura completa
+    if (!document.getElementById("searchInput")) {
+      content.innerHTML =
+        '<div class="search-box">' +
+        '<span>🔍</span>' +
+        '<input id="searchInput" type="text" placeholder="Buscar por concepto o categoría…">' +
+        '<button class="search-clear" id="searchClear" style="display:none">✕</button>' +
+        '</div>' +
+        '<div id="movList"></div>';
+      wireSearch();
+    }
+
+    // Actualizar visibilidad del botón limpiar
+    var clrBtn = document.getElementById("searchClear");
+    if (clrBtn) clrBtn.style.display = searchQuery ? "block" : "none";
+
+    // Filtrar gastos
     var me = monthExpenses().slice().sort(function (a, b) {
       if (a.date !== b.date) return a.date < b.date ? 1 : -1;
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
-
-    // Aplicar búsqueda
     if (searchQuery) {
       var q = searchQuery.toLowerCase();
       me = me.filter(function (e) {
         var c = cat(e.categoryId);
         return (e.note || "").toLowerCase().indexOf(q) > -1 ||
-               c.label.toLowerCase().indexOf(q) > -1 ||
-               c.emoji.indexOf(q) > -1;
+               c.label.toLowerCase().indexOf(q) > -1;
       });
     }
 
-    var content = document.getElementById("content");
-    var searchHTML = '<div class="search-box">' +
-      '<span>🔍</span>' +
-      '<input id="searchInput" type="text" placeholder="Buscar por concepto o categoría…" value="' + esc(searchQuery) + '">' +
-      (searchQuery ? '<button class="search-clear" id="searchClear">✕</button>' : '') +
-      '</div>';
+    // Redibujar solo la lista, sin tocar el input
+    var listEl = document.getElementById("movList");
+    if (!listEl) return;
 
     if (me.length === 0) {
-      content.innerHTML = searchHTML + emptyState();
-      wireSearch();
+      listEl.innerHTML = emptyState();
       return;
     }
 
@@ -709,8 +721,7 @@ body { background: var(--bg); }
         '<div class="amt">' + eur(e.amount) + '</div><div class="chev">›</div></div>';
     });
     if (curDay !== null) html += "</div>";
-    content.innerHTML = searchHTML + html;
-    wireSearch();
+    listEl.innerHTML = html;
   }
 
   function wireSearch() {
@@ -722,7 +733,11 @@ body { background: var(--bg); }
     var clr = document.getElementById("searchClear");
     if (clr) clr.addEventListener("click", function () {
       searchQuery = "";
+      var inp2 = document.getElementById("searchInput");
+      if (inp2) inp2.value = "";
       renderMovimientos();
+      inp2 = document.getElementById("searchInput");
+      if (inp2) inp2.focus();
     });
   }
 
@@ -1459,19 +1474,20 @@ body { background: var(--bg); }
     document.getElementById("prevMonth").addEventListener("click", function () {
       viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
       searchQuery = "";
+      document.getElementById("content").innerHTML = "";
       render();
-      // Comprobar recurrentes al llegar a un mes nuevo
       if (view === "movimientos" || view === "resumen") checkRecurrentExpenses();
     });
     document.getElementById("nextMonth").addEventListener("click", function () {
       viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
       searchQuery = "";
+      document.getElementById("content").innerHTML = "";
       render();
       if (view === "movimientos" || view === "resumen") checkRecurrentExpenses();
     });
-    document.getElementById("tabResumen").addEventListener("click", function () { view = "resumen"; render(); });
-    document.getElementById("tabMov").addEventListener("click", function () { view = "movimientos"; render(); });
-    document.getElementById("tabAnio").addEventListener("click", function () { view = "anio"; render(); });
+    document.getElementById("tabResumen").addEventListener("click", function () { view = "resumen"; document.getElementById("content").innerHTML = ""; render(); });
+    document.getElementById("tabMov").addEventListener("click", function () { view = "movimientos"; document.getElementById("content").innerHTML = ""; render(); });
+    document.getElementById("tabAnio").addEventListener("click", function () { view = "anio"; document.getElementById("content").innerHTML = ""; render(); });
     document.getElementById("addBtn").addEventListener("click", function () { openModal({}); });
     document.getElementById("pasteBtn").addEventListener("click", openPasteSheet);
     document.getElementById("settingsBtn").addEventListener("click", openSettings);
