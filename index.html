@@ -421,9 +421,19 @@ body { background: var(--bg); }
   <div class="toast" id="toast"></div>
 </div>
 <script>
-  // Service Worker
+  // Service Worker — se recarga automáticamente cuando hay una versión nueva
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      reg.addEventListener('updatefound', function () {
+        var nuevo = reg.installing;
+        if (!nuevo) return;
+        nuevo.addEventListener('statechange', function () {
+          if (nuevo.state === 'activated') {
+            window.location.reload();
+          }
+        });
+      });
+    }).catch(function(){});
   }
 (function () {
   "use strict";
