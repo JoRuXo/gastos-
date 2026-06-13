@@ -129,8 +129,8 @@ body { background: var(--bg); }
 /* ---------- Tabs ---------- */
 .tabs { display: flex; gap: 6px; background: var(--bg2); border-radius: 13px; padding: 4px; margin: 16px 0 14px; }
 .tabs button {
-  flex: 1; border: none; background: transparent; padding: 9px; border-radius: 10px; cursor: pointer;
-  font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 13.5px; color: var(--muted); transition: .18s;
+  flex: 1; border: none; background: transparent; padding: 9px 4px; border-radius: 10px; cursor: pointer;
+  font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 12px; color: var(--muted); transition: .18s;
 }
 .tabs button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
 
@@ -363,6 +363,18 @@ body { background: var(--bg); }
 }
 .kind-toggle button.on-gasto { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
 .kind-toggle button.on-ingreso { background: var(--primary); color: #fff; box-shadow: var(--shadow-sm); }
+
+/* ---------- Calendario ---------- */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { text-align: center; font-size: 10px; font-weight: 700; color: var(--faint); text-transform: uppercase; padding-bottom: 4px; }
+.cal-cell { aspect-ratio: 1; border-radius: 9px; background: var(--bg2); padding: 4px 3px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: .12s; overflow: hidden; }
+.cal-cell.empty { background: transparent; cursor: default; }
+.cal-cell:not(.empty):active { transform: scale(.94); }
+.cal-cell .cd { font-size: 11px; font-weight: 600; color: var(--ink); }
+.cal-cell .cg { font-size: 8.5px; font-weight: 700; color: var(--accent); line-height: 1.25; margin-top: auto; }
+.cal-cell .ci { font-size: 8.5px; font-weight: 700; color: var(--primary); line-height: 1.25; }
+.cal-cell.hoy { outline: 2px solid var(--primary); }
+.del-month-btn { background: none; border: none; color: var(--danger); font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 12px; cursor: pointer; text-decoration: underline; display: block; margin: 14px auto 0; }
 </style>
 </head>
 <body>
@@ -420,6 +432,7 @@ body { background: var(--bg); }
     <div class="tabs">
       <button id="tabResumen" class="on">Resumen</button>
       <button id="tabMov">Movimientos</button>
+      <button id="tabCal">Calendario</button>
       <button id="tabEvol">Evolución</button>
     </div>
 
@@ -428,6 +441,7 @@ body { background: var(--bg); }
     <div class="foot">
       <button id="pasteBtn">📋 Pegar movimientos (desde el chat)</button>
       <button id="exportBtn2" style="display:block;margin:10px auto 0">Exportar copia de seguridad (CSV)</button>
+      <button id="delMonthBtn" class="del-month-btn">🗑 Borrar movimientos de este mes</button>
       <p>Tus datos se guardan en este dispositivo. Exporta de vez en cuando para tener un respaldo.</p>
     </div>
   </div>
@@ -617,6 +631,25 @@ body { background: var(--bg); }
   function deleteExpense(id) {
     return sb.from("gastos").delete().eq("id", id).then(function(res) {
       if (res.error) { console.error("deleteExpense", res.error); toast("Error al borrar 😕"); }
+    });
+  }
+
+  // Borra TODOS los movimientos del mes que se está viendo (con doble confirmación)
+  function deleteMonth() {
+    var me = monthExpenses();
+    var nombre = monthName(viewMonth) + " " + viewYear;
+    if (me.length === 0) { toast("No hay nada que borrar en " + nombre); return; }
+    var ok1 = window.confirm("¿Seguro que quieres borrar los " + me.length + " movimientos de " + nombre + "?\n\nEsto no se puede deshacer.");
+    if (!ok1) return;
+    var ok2 = window.confirm("Última confirmación: se borrarán DEFINITIVAMENTE todos los movimientos de " + nombre + ".");
+    if (!ok2) return;
+    var ini = monthKey(viewYear, viewMonth) + "-01";
+    var fin = monthKey(viewYear, viewMonth) + "-31";
+    sb.from("gastos").delete().gte("date", ini).lte("date", fin).then(function(res) {
+      if (res.error) { console.error("deleteMonth", res.error); toast("Error al borrar 😕"); return; }
+      expenses = expenses.filter(function (e) { return (e.date || "").slice(0, 7) !== monthKey(viewYear, viewMonth); });
+      render();
+      toast("Borrado " + nombre + " ✓");
     });
   }
 
@@ -843,6 +876,89 @@ body { background: var(--bg); }
     content.innerHTML = html;
   }
 
+  // ---------- Render: calendario ----------
+  function renderCalendario() {
+    var content = document.getElementById("content");
+    var me = monthExpenses();
+    // Sumar gastos e ingresos por día
+    var porDia = {};
+    me.forEach(function (e) {
+      var d = parseInt((e.date || "").slice(8, 10), 10);
+      if (!d) return;
+      if (!porDia[d]) porDia[d] = { g: 0, i: 0 };
+      if (e.kind === "ingreso") porDia[d].i += (e.amount || 0);
+      else porDia[d].g += (e.amount || 0);
+    });
+
+    var primerDia = new Date(viewYear, viewMonth, 1).getDay(); // 0=domingo
+    var offset = (primerDia === 0) ? 6 : primerDia - 1; // empezar en lunes
+    var diasMes = new Date(viewYear, viewMonth + 1, 0).getDate();
+    var hoy = todayISO();
+
+    var dows = ["L", "M", "X", "J", "V", "S", "D"];
+    var html = '<div class="card"><h3>' + monthName(viewMonth) + " " + viewYear +
+      ' <span style="font-size:11px;font-weight:400;color:var(--faint);font-family:\'Hanken Grotesk\',sans-serif">· toca un día</span></h3>' +
+      '<div class="cal-grid">';
+    dows.forEach(function (d) { html += '<div class="cal-dow">' + d + '</div>'; });
+    for (var k = 0; k < offset; k++) html += '<div class="cal-cell empty"></div>';
+    for (var dia = 1; dia <= diasMes; dia++) {
+      var iso = monthKey(viewYear, viewMonth) + "-" + pad2(dia);
+      var dd = porDia[dia];
+      var esHoy = iso === hoy ? " hoy" : "";
+      html += '<div class="cal-cell' + esHoy + '" data-day="' + iso + '">' +
+        '<span class="cd">' + dia + '</span>' +
+        (dd && dd.g > 0 ? '<span class="cg">-' + Math.round(dd.g) + '</span>' : '') +
+        (dd && dd.i > 0 ? '<span class="ci">+' + Math.round(dd.i) + '</span>' : '') +
+        '</div>';
+    }
+    html += '</div>' +
+      '<div style="display:flex;gap:14px;justify-content:center;margin-top:14px;font-size:11px;color:var(--muted)">' +
+      '<span><span style="color:var(--accent);font-weight:700">−</span> gastos</span>' +
+      '<span><span style="color:var(--primary);font-weight:700">+</span> ingresos</span></div>' +
+      '</div>';
+    content.innerHTML = html;
+  }
+
+  function openDayDetail(iso) {
+    var items = expenses.filter(function (e) { return e.date === iso; })
+      .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    var sheet = document.getElementById("sheet");
+    var d = new Date(iso + "T00:00:00");
+    var titulo = d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+    titulo = titulo.charAt(0).toUpperCase() + titulo.slice(1);
+    var gastos = sum(items.filter(function (e) { return e.kind !== "ingreso"; }));
+    var ingresos = sum(items.filter(function (e) { return e.kind === "ingreso"; }));
+
+    var filas = items.length === 0
+      ? '<div class="empty" style="padding:24px"><p>No hay movimientos este día.</p></div>'
+      : items.map(function (e) {
+          var esIng = e.kind === "ingreso";
+          var c = cat(e.categoryId);
+          return '<div class="item" data-id="' + e.id + '">' +
+            '<div class="ico" style="background:' + (esIng ? "#14543C22" : c.color + "22") + '">' + (esIng ? "💰" : c.emoji) + '</div>' +
+            '<div class="mid"><div class="t">' + esc(e.note || (esIng ? "Ingreso" : c.label)) + '</div>' +
+            '<div class="s">' + (esIng ? "Ingreso" : esc(c.label)) + '</div></div>' +
+            '<div class="amt"' + (esIng ? ' style="color:#14543C"' : '') + '>' + (esIng ? "+" : "") + eur(e.amount) + '</div></div>';
+        }).join("");
+
+    sheet.innerHTML =
+      '<div class="grab"></div>' +
+      '<h2>' + esc(titulo) + '</h2>' +
+      '<div style="display:flex;gap:10px;margin-bottom:16px">' +
+      '<div style="flex:1;background:var(--accent-soft);border-radius:12px;padding:10px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase">Gastos</div><div style="font-family:\'Fraunces\',serif;font-size:16px;font-weight:600;color:var(--accent)">' + eur(gastos) + '</div></div>' +
+      '<div style="flex:1;background:var(--primary-soft);border-radius:12px;padding:10px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase">Ingresos</div><div style="font-family:\'Fraunces\',serif;font-size:16px;font-weight:600;color:var(--primary)">' + eur(ingresos) + '</div></div>' +
+      '</div>' +
+      filas;
+    document.getElementById("modal").classList.remove("hidden");
+    // Tocar un movimiento del día lo abre para editar
+    sheet.addEventListener("click", function (ev) {
+      var it = ev.target.closest(".item");
+      if (!it) return;
+      var e = expenses.find(function (x) { return x.id === it.getAttribute("data-id"); });
+      if (e) openModal({ id: e.id, amount: e.amount, categoryId: e.categoryId, note: e.note, date: e.date, kind: e.kind });
+    });
+  }
+
   function emptyState() {
     return '<div class="card"><div class="empty"><div class="big">🧾</div>' +
       '<p>Aún no hay movimientos en ' + monthName(viewMonth) + '.</p>' +
@@ -853,9 +969,11 @@ body { background: var(--bg); }
     renderHeader();
     document.getElementById("tabResumen").classList.toggle("on", view === "resumen");
     document.getElementById("tabMov").classList.toggle("on", view === "movimientos");
+    document.getElementById("tabCal").classList.toggle("on", view === "calendario");
     document.getElementById("tabEvol").classList.toggle("on", view === "evolucion");
     if (view === "resumen") renderResumen();
     else if (view === "evolucion") renderEvolucion();
+    else if (view === "calendario") renderCalendario();
     else renderMovimientos();
   }
 
@@ -1393,6 +1511,8 @@ body { background: var(--bg); }
     document.getElementById("tabResumen").addEventListener("click", function () { view = "resumen"; render(); });
     document.getElementById("tabMov").addEventListener("click", function () { view = "movimientos"; render(); });
     document.getElementById("tabEvol").addEventListener("click", function () { view = "evolucion"; render(); });
+    document.getElementById("tabCal").addEventListener("click", function () { view = "calendario"; render(); });
+    document.getElementById("delMonthBtn").addEventListener("click", deleteMonth);
     document.getElementById("addBtn").addEventListener("click", function () { openModal({}); });
     document.getElementById("pasteBtn").addEventListener("click", openPasteSheet);
     document.getElementById("scanInput").addEventListener("change", function (ev) {
@@ -1405,6 +1525,12 @@ body { background: var(--bg); }
     document.getElementById("exportBtn2").addEventListener("click", exportCSV);
 
     document.getElementById("content").addEventListener("click", function (ev) {
+      // Tocar un día del calendario
+      var cell = ev.target.closest(".cal-cell");
+      if (cell && !cell.classList.contains("empty")) {
+        openDayDetail(cell.getAttribute("data-day"));
+        return;
+      }
       // Expandir/colapsar categoría
       var head = ev.target.closest(".catbar-head");
       if (head) {
