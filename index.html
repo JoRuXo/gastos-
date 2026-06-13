@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Mis Gastos">
   <meta name="description" content="Control de gastos personales">
   <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Mis Gastos</title>
   <style>
@@ -318,9 +319,62 @@ body { background: var(--bg); }
   .sheet { border-radius: 22px; max-width: 460px; max-height: 86vh; animation: pop .18s ease; }
 }
 @keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+/* ---------- Login screen ---------- */
+#loginScreen {
+  position: fixed; inset: 0; z-index: 100;
+  background: radial-gradient(900px 400px at 80% -10%, rgba(20,84,60,.08), transparent 60%),
+              radial-gradient(700px 400px at -10% 10%, rgba(217,128,59,.08), transparent 55%),
+              var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+#loginScreen.hidden { display: none; }
+.login-box {
+  width: 100%; max-width: 360px;
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 32px 28px 28px;
+}
+.login-box .mark {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: linear-gradient(150deg, var(--primary), var(--primary-d));
+  display: grid; place-items: center; font-size: 26px;
+  box-shadow: var(--shadow-sm); margin: 0 auto 18px;
+}
+.login-box h2 {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 22px;
+  text-align: center; margin-bottom: 6px;
+}
+.login-box p { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 24px; }
+.login-err { color: var(--danger); font-size: 12.5px; margin-bottom: 12px; text-align: center; display: none; }
+.login-btn {
+  width: 100%; border: none; border-radius: var(--radius-sm);
+  padding: 15px; background: var(--primary); color: #fff;
+  font-family: 'Hanken Grotesk'; font-weight: 700; font-size: 15px;
+  cursor: pointer; transition: .15s; margin-top: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.login-btn:active { transform: scale(.98); }
+.login-btn:disabled { opacity: .7; }
 </style>
 </head>
 <body>
+<!-- Pantalla de login — se oculta automáticamente al entrar -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="mark">🌷</div>
+    <h2>Mis Gastos</h2>
+    <p>Introduce tus datos para entrar</p>
+    <div class="field">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:7px;letter-spacing:.02em">EMAIL</label>
+      <input id="loginEmail" class="txt-input" type="email" placeholder="tu@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:7px;letter-spacing:.02em">CONTRASEÑA</label>
+      <input id="loginPass" class="txt-input" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="login-err" id="loginErr">Email o contraseña incorrectos</div>
+    <button class="login-btn" id="loginBtn">Entrar</button>
+  </div>
+</div>
 <div id="app">
   <div class="phone">
     <div class="topbar">
@@ -386,7 +440,14 @@ body { background: var(--bg); }
   "use strict";
 
   // ---------- Config ----------
-  var STORAGE_KEY = "gastos_data_v1";
+  // ⬇ PON AQUÍ TUS DOS CLAVES DE SUPABASE
+  var SUPABASE_URL = "PEGA_AQUI_TU_URL";
+  var SUPABASE_KEY = "PEGA_AQUI_TU_PUBLISHABLE_KEY";
+  // ⬆ Solo cambia esas dos líneas, no toques nada más
+
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  var currentUser = null;
+
   var CATS = [
     { id: "vivienda",      label: "Habitación / Vivienda", emoji: "🏠", color: "#14543C", type: "fija" },
     { id: "suministros",   label: "Suministros y casa",    emoji: "💡", color: "#3A6B5A", type: "fija" },
@@ -414,11 +475,10 @@ body { background: var(--bg); }
   var view = "resumen";
   var now = new Date();
   var viewYear = now.getFullYear();
-  var viewMonth = now.getMonth(); // 0-11
+  var viewMonth = now.getMonth();
   var editingId = null;
   var formCat = "super";
   var openCats = {};
-  var hasStorage = (function () { try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return true; } catch (e) { return false; } })();
 
   // ---------- Helpers ----------
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
@@ -457,7 +517,6 @@ body { background: var(--bg); }
   function parseAmount(str) {
     if (!str) return NaN;
     var s = String(str).trim().replace(/\s/g, "").replace(/€/g, "");
-    // handle both 1.234,56 and 1234.56
     if (s.indexOf(",") > -1 && s.indexOf(".") > -1) {
       s = s.replace(/\./g, "").replace(",", ".");
     } else {
@@ -481,23 +540,76 @@ body { background: var(--bg); }
     });
   }
 
-  // ---------- Storage ----------
-  function loadData() {
-    try {
-      var raw = hasStorage ? localStorage.getItem(STORAGE_KEY) : null;
-      expenses = raw ? (JSON.parse(raw) || []) : [];
-    } catch (e) { expenses = []; }
-    return Promise.resolve();
-  }
-  function saveData() {
-    try {
-      if (hasStorage) localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
-    } catch (e) {
-      console.error("Error guardando", e);
-      toast("No se pudo guardar 😕");
+  // ---------- Auth ----------
+  function showLogin() { document.getElementById("loginScreen").classList.remove("hidden"); }
+  function hideLogin() { document.getElementById("loginScreen").classList.add("hidden"); }
+
+  function initAuth() {
+    var btn = document.getElementById("loginBtn");
+    var emailEl = document.getElementById("loginEmail");
+    var passEl  = document.getElementById("loginPass");
+    var errEl   = document.getElementById("loginErr");
+
+    function doLogin() {
+      var email = emailEl.value.trim();
+      var pass  = passEl.value;
+      if (!email || !pass) return;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-sm" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> Entrando…';
+      errEl.style.display = "none";
+      sb.auth.signInWithPassword({ email: email, password: pass })
+        .then(function(res) {
+          if (res.error) {
+            errEl.style.display = "block";
+            btn.disabled = false;
+            btn.textContent = "Entrar";
+          }
+        });
     }
-    return Promise.resolve();
+
+    btn.addEventListener("click", doLogin);
+    passEl.addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
+
+    sb.auth.onAuthStateChange(function(event, session) {
+      if (session && session.user) {
+        currentUser = session.user;
+        hideLogin();
+        loadData().then(function() { render(); });
+      } else {
+        currentUser = null;
+        expenses = [];
+        showLogin();
+      }
+    });
   }
+
+  // ---------- Storage (Supabase) ----------
+  function loadData() {
+    if (!currentUser) return Promise.resolve();
+    return sb.from("gastos").select("*").order("date", { ascending: false })
+      .then(function(res) {
+        if (res.error) { console.error("loadData", res.error); return; }
+        expenses = (res.data || []).map(function(r) {
+          return { id: r.id, amount: r.amount, categoryId: r.category_id, note: r.note || "", date: r.date, createdAt: new Date(r.created_at).getTime() };
+        });
+      });
+  }
+
+  function saveExpense(exp) {
+    // Convierte del formato interno de la app al formato de Supabase
+    var row = { id: exp.id, amount: exp.amount, category_id: exp.categoryId, note: exp.note || "", date: exp.date };
+    return sb.from("gastos").upsert(row).then(function(res) {
+      if (res.error) { console.error("saveExpense", res.error); toast("Error al guardar 😕"); }
+    });
+  }
+
+  function deleteExpense(id) {
+    return sb.from("gastos").delete().eq("id", id).then(function(res) {
+      if (res.error) { console.error("deleteExpense", res.error); toast("Error al borrar 😕"); }
+    });
+  }
+
+  function saveData() { return Promise.resolve(); } // compatibilidad — no se usa directamente
 
   // ---------- Selectors / computations ----------
   function monthExpenses() {
@@ -727,26 +839,25 @@ body { background: var(--bg); }
     if (editingId) {
       var ex = expenses.find(function (x) { return x.id === editingId; });
       if (ex) { ex.amount = amt; ex.categoryId = formCat; ex.note = note; ex.date = date; }
-      toast("Gasto actualizado ✓");
+      saveExpense(ex).then(function() { toast("Gasto actualizado ✓"); });
     } else {
-      expenses.push({ id: uid(), amount: amt, categoryId: formCat, note: note, date: date, createdAt: Date.now() });
-      toast("Gasto guardado ✓");
+      var newExp = { id: uid(), amount: amt, categoryId: formCat, note: note, date: date, createdAt: Date.now() };
+      expenses.push(newExp);
+      saveExpense(newExp).then(function() { toast("Gasto guardado ✓"); });
     }
-    // jump view to the month of the saved expense
     var d = new Date(date + "T00:00:00");
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
-    saveData();
     closeModal();
     render();
   }
 
   function deleteCurrent() {
     if (!editingId) return;
-    expenses = expenses.filter(function (x) { return x.id !== editingId; });
-    saveData();
+    var idToDel = editingId;
+    expenses = expenses.filter(function (x) { return x.id !== idToDel; });
+    deleteExpense(idToDel).then(function() { toast("Gasto eliminado"); });
     closeModal();
     render();
-    toast("Gasto eliminado");
   }
 
   // ---------- Scan ticket via API ----------
@@ -802,10 +913,7 @@ body { background: var(--bg); }
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{
             role: "user",
-            content: [
-              media,
-              { type: "text", text: scanPrompt() }
-            ]
+            content: [ media, { type: "text", text: scanPrompt() } ]
           }]
         })
       });
@@ -838,7 +946,7 @@ body { background: var(--bg); }
 
   function handleScan(file) {
     if (!file) return;
-    openModal({ statusHTML: '<div class="scan-status"><div class="spinner"></div><div>Analizando el archivo y buscando los establecimientos… puede tardar unos segundos.</div></div>', date: todayISO() });
+    openModal({ statusHTML: '<div class="scan-status"><div class="spinner"></div><div>Analizando la imagen y buscando los establecimientos… puede tardar unos segundos.</div></div>', date: todayISO() });
     callVisionAPI(file).then(function (data) {
       if (!data || data.error || !data.content) throw new Error("respuesta vacía");
       var text = data.content.map(function (b) { return b.type === "text" ? b.text : ""; }).join("\n");
@@ -847,7 +955,7 @@ body { background: var(--bg); }
       var list = (parsed.movimientos || []).map(mapMovement).filter(function (x) { return x.amount > 0; });
 
       if (list.length === 0) {
-        openModal({ date: todayISO(), statusHTML: '<div class="scan-status"><div>No detecté ningún gasto en el archivo. Rellénalo a mano.</div></div>' });
+        openModal({ date: todayISO(), statusHTML: '<div class="scan-status"><div>No detecté ningún gasto en la imagen. Rellénalo a mano.</div></div>' });
       } else if (list.length === 1) {
         var x = list[0];
         var dup = isDuplicate(x);
@@ -863,7 +971,7 @@ body { background: var(--bg); }
       }
     }).catch(function (err) {
       console.error("scan error", err);
-      openModal({ date: todayISO(), statusHTML: '<div class="scan-status"><div>No pude leer el archivo automáticamente. Rellénalo a mano.</div></div>' });
+      openModal({ date: todayISO(), statusHTML: '<div class="scan-status"><div>No pude leer la imagen automáticamente. Rellénalo a mano.</div></div>' });
     });
   }
 
@@ -984,26 +1092,34 @@ body { background: var(--bg); }
 
   function addAllFromReview() {
     var rows = document.querySelectorAll("#revList .rev-row");
-    var added = 0, lastDate = todayISO();
+    var toSave = [], lastDate = todayISO();
     Array.prototype.forEach.call(rows, function (row) {
-      if (row.getAttribute("data-dup") === "1") return; // skip duplicados no forzados
+      if (row.getAttribute("data-dup") === "1") return;
       var amt = parseAmount(row.querySelector('[data-f="amount"]').value);
       if (isNaN(amt) || amt <= 0) return;
       var dt = row.querySelector('[data-f="date"]').value || todayISO();
       lastDate = dt;
-      expenses.push({
+      var exp = {
         id: uid(), amount: amt,
         categoryId: row.querySelector('[data-f="cat"]').value,
         note: row.querySelector('[data-f="note"]').value.trim(),
         date: dt, createdAt: Date.now()
-      });
-      added++;
+      };
+      expenses.push(exp);
+      toSave.push(exp);
     });
-    if (added === 0) { toast("Revisa los importes"); return; }
+    if (toSave.length === 0) { toast("Revisa los importes"); return; }
     var d = new Date(lastDate + "T00:00:00");
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
-    saveData(); closeModal(); render();
-    toast(added + (added > 1 ? " gastos añadidos ✓" : " gasto añadido ✓"));
+    // Guardar todos de golpe en Supabase
+    var rows2save = toSave.map(function(exp) {
+      return { id: exp.id, amount: exp.amount, category_id: exp.categoryId, note: exp.note || "", date: exp.date };
+    });
+    sb.from("gastos").upsert(rows2save).then(function(res) {
+      if (res.error) { console.error("addAllFromReview", res.error); toast("Error al guardar 😕"); return; }
+      toast(toSave.length + (toSave.length > 1 ? " gastos añadidos ✓" : " gasto añadido ✓"));
+    });
+    closeModal(); render();
   }
 
   // ---------- Classify from text ----------
@@ -1168,8 +1284,7 @@ body { background: var(--bg); }
 
   // ---------- Init ----------
   wire();
-
-  loadData().then(function () { render(); });
+  initAuth();
 })();
 </script>
 </body>
