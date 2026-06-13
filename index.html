@@ -354,6 +354,15 @@ body { background: var(--bg); }
 }
 .login-btn:active { transform: scale(.98); }
 .login-btn:disabled { opacity: .7; }
+
+/* ---------- Interruptor Gasto/Ingreso ---------- */
+.kind-toggle { display: flex; gap: 6px; background: var(--bg2); border-radius: 13px; padding: 4px; margin-bottom: 16px; }
+.kind-toggle button {
+  flex: 1; border: none; background: transparent; padding: 11px; border-radius: 10px; cursor: pointer;
+  font-family: 'Hanken Grotesk'; font-weight: 600; font-size: 13.5px; color: var(--muted); transition: .18s;
+}
+.kind-toggle button.on-gasto { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
+.kind-toggle button.on-ingreso { background: var(--primary); color: #fff; box-shadow: var(--shadow-sm); }
 </style>
 </head>
 <body>
@@ -394,11 +403,11 @@ body { background: var(--bg); }
         <span class="label" id="monthLabel">—</span>
         <button id="nextMonth">›</button>
       </div>
-      <div class="total-lbl">Gastado este mes</div>
+      <div class="total-lbl">Te queda este mes</div>
       <div class="total" id="monthTotal">0,00 €</div>
       <div class="split">
-        <div class="pill"><div class="k">Fijos</div><div class="v" id="fixedTotal">0 €</div></div>
-        <div class="pill"><div class="k">Variables</div><div class="v" id="varTotal">0 €</div></div>
+        <div class="pill"><div class="k">Ingresos</div><div class="v" id="fixedTotal">0 €</div></div>
+        <div class="pill"><div class="k">Gastos</div><div class="v" id="varTotal">0 €</div></div>
         <div class="pill"><div class="k">Apuntes</div><div class="v" id="countTotal">0</div></div>
       </div>
     </div>
@@ -411,6 +420,7 @@ body { background: var(--bg); }
     <div class="tabs">
       <button id="tabResumen" class="on">Resumen</button>
       <button id="tabMov">Movimientos</button>
+      <button id="tabEvol">Evolución</button>
     </div>
 
     <main id="content"></main>
@@ -478,6 +488,7 @@ body { background: var(--bg); }
   var viewMonth = now.getMonth();
   var editingId = null;
   var formCat = "super";
+  var formKind = "gasto";
   var openCats = {};
 
   // ---------- Helpers ----------
@@ -590,14 +601,14 @@ body { background: var(--bg); }
       .then(function(res) {
         if (res.error) { console.error("loadData", res.error); return; }
         expenses = (res.data || []).map(function(r) {
-          return { id: r.id, amount: r.amount, categoryId: r.category_id, note: r.note || "", date: r.date, createdAt: new Date(r.created_at).getTime() };
+          return { id: r.id, amount: r.amount, categoryId: r.category_id, note: r.note || "", date: r.date, kind: r.kind || "gasto", createdAt: new Date(r.created_at).getTime() };
         });
       });
   }
 
   function saveExpense(exp) {
     // Convierte del formato interno de la app al formato de Supabase
-    var row = { id: exp.id, amount: exp.amount, category_id: exp.categoryId, note: exp.note || "", date: exp.date };
+    var row = { id: exp.id, amount: exp.amount, category_id: exp.categoryId, note: exp.note || "", date: exp.date, kind: exp.kind || "gasto" };
     return sb.from("gastos").upsert(row).then(function(res) {
       if (res.error) { console.error("saveExpense", res.error); toast("Error al guardar 😕"); }
     });
@@ -616,6 +627,14 @@ body { background: var(--bg); }
     var key = monthKey(viewYear, viewMonth);
     return expenses.filter(function (e) { return (e.date || "").slice(0, 7) === key; });
   }
+  // Solo los GASTOS del mes (lo que sale) — para el donut y el desglose
+  function monthGastos() {
+    return monthExpenses().filter(function (e) { return e.kind !== "ingreso"; });
+  }
+  // Solo los INGRESOS del mes (lo que entra)
+  function monthIngresos() {
+    return monthExpenses().filter(function (e) { return e.kind === "ingreso"; });
+  }
   function sum(arr) { return arr.reduce(function (a, e) { return a + (e.amount || 0); }, 0); }
   function byCategory(arr) {
     var map = {};
@@ -626,15 +645,17 @@ body { background: var(--bg); }
 
   // ---------- Render: header ----------
   function renderHeader() {
-    var me = monthExpenses();
-    var total = sum(me);
-    var fixed = sum(me.filter(function (e) { return cat(e.categoryId).type === "fija"; }));
-    var vari = total - fixed;
+    var gastos = sum(monthGastos());
+    var ingresos = sum(monthIngresos());
+    var queda = ingresos - gastos;
     document.getElementById("monthLabel").textContent = monthName(viewMonth) + " " + viewYear;
-    document.getElementById("monthTotal").textContent = eur(total);
-    document.getElementById("fixedTotal").textContent = eurShort(fixed);
-    document.getElementById("varTotal").textContent = eurShort(vari);
-    document.getElementById("countTotal").textContent = me.length;
+    document.getElementById("monthTotal").textContent = eur(queda);
+    document.getElementById("fixedTotal").textContent = eurShort(ingresos);
+    document.getElementById("varTotal").textContent = eurShort(gastos);
+    document.getElementById("countTotal").textContent = monthExpenses().length;
+    // El "Queda" se pinta en verde si es positivo y en rojo si es negativo
+    var totalEl = document.getElementById("monthTotal");
+    totalEl.style.color = queda < 0 ? "#FFD2CE" : "#fff";
   }
 
   // ---------- Render: donut ----------
@@ -661,9 +682,14 @@ body { background: var(--bg); }
 
   // ---------- Render: resumen ----------
   function renderResumen() {
-    var me = monthExpenses();
+    var me = monthGastos();
     var content = document.getElementById("content");
-    if (me.length === 0) { content.innerHTML = emptyState(); return; }
+    if (me.length === 0 && monthIngresos().length === 0) { content.innerHTML = emptyState(); return; }
+    if (me.length === 0) {
+      content.innerHTML = '<div class="card"><div class="empty"><div class="big">💰</div>' +
+        '<p>Este mes solo hay ingresos, ningún gasto todavía.</p></div></div>';
+      return;
+    }
 
     var total = sum(me);
     var cats = byCategoryWithItems(me).map(function (x) {
@@ -712,35 +738,109 @@ body { background: var(--bg); }
     var content = document.getElementById("content");
     if (me.length === 0) { content.innerHTML = emptyState(); return; }
 
-    var html = '<div class="edit-hint">✎ Toca un gasto para editarlo o borrarlo</div>', curDay = null;
+    var html = '<div class="edit-hint">✎ Toca un movimiento para editarlo o borrarlo</div>', curDay = null;
     me.forEach(function (e) {
       if (e.date !== curDay) {
         if (curDay !== null) html += "</div>";
         curDay = e.date;
         html += '<div class="day-group"><div class="day-label">' + esc(dayLabel(e.date)) + "</div>";
       }
+      var esIngreso = e.kind === "ingreso";
       var c = cat(e.categoryId);
+      var ico = esIngreso ? "💰" : c.emoji;
+      var icoBg = esIngreso ? "#14543C22" : c.color + "22";
+      var sub = esIngreso ? "Ingreso" : c.label;
+      var amtTxt = esIngreso ? ("+" + eur(e.amount)) : eur(e.amount);
+      var amtColor = esIngreso ? ' style="color:#14543C"' : '';
       html += '<div class="item" data-id="' + e.id + '">' +
-        '<div class="ico" style="background:' + c.color + '22">' + c.emoji + '</div>' +
-        '<div class="mid"><div class="t">' + esc(e.note || c.label) + '</div>' +
-        '<div class="s">' + esc(c.label) + '</div></div>' +
-        '<div class="amt">' + eur(e.amount) + '</div><div class="chev">›</div></div>';
+        '<div class="ico" style="background:' + icoBg + '">' + ico + '</div>' +
+        '<div class="mid"><div class="t">' + esc(e.note || sub) + '</div>' +
+        '<div class="s">' + esc(sub) + '</div></div>' +
+        '<div class="amt"' + amtColor + '>' + amtTxt + '</div><div class="chev">›</div></div>';
     });
     if (curDay !== null) html += "</div>";
     content.innerHTML = html;
   }
 
+  // ---------- Render: evolución (comparar meses desde el 20 mayo 2026) ----------
+  var ETAPA_INICIO = "2026-05"; // mes en que empezó la etapa en Holanda
+
+  function renderEvolucion() {
+    var content = document.getElementById("content");
+    // Agrupar por mes desde el inicio de la etapa
+    var meses = {};
+    expenses.forEach(function (e) {
+      var mk = (e.date || "").slice(0, 7);
+      if (!mk || mk < ETAPA_INICIO) return;
+      if (!meses[mk]) meses[mk] = { ingresos: 0, gastos: 0 };
+      if (e.kind === "ingreso") meses[mk].ingresos += (e.amount || 0);
+      else meses[mk].gastos += (e.amount || 0);
+    });
+    var claves = Object.keys(meses).sort();
+    if (claves.length === 0) {
+      content.innerHTML = '<div class="card"><div class="empty"><div class="big">📊</div>' +
+        '<p>Aún no hay movimientos desde mayo de 2026.</p>' +
+        '<p class="hint">Cuando metas gastos e ingresos verás aquí la comparación mes a mes.</p></div></div>';
+      return;
+    }
+    var maxVal = 0;
+    claves.forEach(function (k) { maxVal = Math.max(maxVal, meses[k].ingresos, meses[k].gastos); });
+
+    // Totales acumulados de toda la etapa
+    var totIng = 0, totGas = 0;
+    claves.forEach(function (k) { totIng += meses[k].ingresos; totGas += meses[k].gastos; });
+
+    var barras = claves.map(function (k) {
+      var m = meses[k];
+      var queda = m.ingresos - m.gastos;
+      var nombreMes = monthName(parseInt(k.slice(5, 7), 10) - 1);
+      var pctIng = maxVal > 0 ? (m.ingresos / maxVal * 100) : 0;
+      var pctGas = maxVal > 0 ? (m.gastos / maxVal * 100) : 0;
+      return '<div style="margin-bottom:18px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">' +
+        '<span style="font-size:13.5px;font-weight:600;text-transform:capitalize">' + nombreMes + '</span>' +
+        '<span style="font-size:13px;font-weight:600;color:' + (queda < 0 ? "var(--danger)" : "var(--primary)") + '">' +
+        (queda >= 0 ? "+" : "") + eur(queda) + '</span></div>' +
+        // barra ingresos
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">' +
+        '<span style="font-size:10px;color:var(--muted);width:54px">Ingresos</span>' +
+        '<div style="flex:1;height:14px;background:var(--bg2);border-radius:5px;overflow:hidden">' +
+        '<div style="height:100%;width:' + pctIng.toFixed(1) + '%;background:#14543C;border-radius:5px"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:600;width:64px;text-align:right">' + eurShort(m.ingresos) + '</span></div>' +
+        // barra gastos
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span style="font-size:10px;color:var(--muted);width:54px">Gastos</span>' +
+        '<div style="flex:1;height:14px;background:var(--bg2);border-radius:5px;overflow:hidden">' +
+        '<div style="height:100%;width:' + pctGas.toFixed(1) + '%;background:#D9803B;border-radius:5px"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:600;width:64px;text-align:right">' + eurShort(m.gastos) + '</span></div>' +
+        '</div>';
+    }).join("");
+
+    var totQueda = totIng - totGas;
+    content.innerHTML =
+      '<div class="card"><h3>Mi etapa en Holanda <span style="font-size:11px;font-weight:400;color:var(--faint);font-family:\'Hanken Grotesk\',sans-serif">· desde el 20 de mayo</span></h3>' +
+      '<div style="display:flex;gap:10px;margin-bottom:18px">' +
+      '<div style="flex:1;background:var(--primary-soft);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Ingresos</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:var(--primary)">' + eurShort(totIng) + '</div></div>' +
+      '<div style="flex:1;background:var(--accent-soft);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Gastos</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:var(--accent)">' + eurShort(totGas) + '</div></div>' +
+      '<div style="flex:1;background:var(--bg2);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Queda</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:' + (totQueda < 0 ? "var(--danger)" : "var(--primary)") + '">' + eurShort(totQueda) + '</div></div>' +
+      '</div></div>' +
+      '<div class="card"><h3>Mes a mes</h3>' + barras + '</div>';
+  }
+
   function emptyState() {
     return '<div class="card"><div class="empty"><div class="big">🧾</div>' +
-      '<p>Aún no hay gastos en ' + monthName(viewMonth) + '.</p>' +
-      '<p class="hint">Pulsa <b>Añadir gasto</b> o <b>Escanear ticket</b> para empezar.</p></div></div>';
+      '<p>Aún no hay movimientos en ' + monthName(viewMonth) + '.</p>' +
+      '<p class="hint">Pulsa <b>Añadir</b> o <b>Ticket, captura o PDF</b> para empezar.</p></div></div>';
   }
 
   function render() {
     renderHeader();
     document.getElementById("tabResumen").classList.toggle("on", view === "resumen");
     document.getElementById("tabMov").classList.toggle("on", view === "movimientos");
-    if (view === "resumen") renderResumen(); else renderMovimientos();
+    document.getElementById("tabEvol").classList.toggle("on", view === "evolucion");
+    if (view === "resumen") renderResumen();
+    else if (view === "evolucion") renderEvolucion();
+    else renderMovimientos();
   }
 
   // ---------- Modal ----------
@@ -755,28 +855,45 @@ body { background: var(--bg); }
     opts = opts || {};
     editingId = opts.id || null;
     formCat = opts.categoryId || "super";
+    formKind = opts.kind || "gasto";
     var amount = opts.amount != null ? String(opts.amount).replace(".", ",") : "";
     var date = opts.date || todayISO();
     var note = opts.note || "";
+    var esIngreso = formKind === "ingreso";
 
     var sheet = document.getElementById("sheet");
     sheet.innerHTML =
       '<div class="grab"></div>' +
-      '<h2>' + (editingId ? "Editar gasto" : "Nuevo gasto") + '</h2>' +
+      '<h2 id="modalTitle">' + (editingId ? "Editar movimiento" : "Nuevo movimiento") + '</h2>' +
       (opts.statusHTML || "") +
+      '<div class="kind-toggle" id="kindToggle">' +
+      '<button type="button" data-kind="gasto" class="' + (!esIngreso ? "on-gasto" : "") + '">💸 Gasto</button>' +
+      '<button type="button" data-kind="ingreso" class="' + (esIngreso ? "on-ingreso" : "") + '">💰 Ingreso</button>' +
+      '</div>' +
       '<div class="field"><label>Importe</label>' +
       '<div class="amount-input"><span>€</span><input id="fAmount" type="text" inputmode="decimal" placeholder="0,00" value="' + esc(amount) + '"></div>' +
       (opts.amountErr ? '<div class="note-err" style="margin-top:6px">' + esc(opts.amountErr) + "</div>" : "") +
       '</div>' +
-      '<div class="field"><label style="display:flex;justify-content:space-between;align-items:center">Categoría <button type="button" class="deduce-btn" id="deduceBtn">🔎 Deducir del concepto</button></label><div class="cat-grid" id="catGrid">' + catGrid(formCat) + '</div></div>' +
-      '<div class="field"><label>Concepto (opcional)</label><input id="fNote" class="txt-input" type="text" placeholder="p. ej. Compra Jumbo" value="' + esc(note) + '"></div>' +
+      '<div class="field" id="catField"' + (esIngreso ? ' style="display:none"' : '') + '><label style="display:flex;justify-content:space-between;align-items:center">Categoría <button type="button" class="deduce-btn" id="deduceBtn">🔎 Deducir del concepto</button></label><div class="cat-grid" id="catGrid">' + catGrid(formCat) + '</div></div>' +
+      '<div class="field"><label>Concepto (opcional)</label><input id="fNote" class="txt-input" type="text" placeholder="' + (esIngreso ? "p. ej. Sueldo" : "p. ej. Compra Jumbo") + '" value="' + esc(note) + '"></div>' +
       '<div class="field"><label>Fecha</label><input id="fDate" class="date-input" type="date" value="' + esc(date) + '"></div>' +
       '<div class="sheet-actions">' +
       (editingId ? '<button class="btn del-btn" id="delBtn">🗑</button>' : "") +
-      '<button class="btn save-btn" id="saveBtn">' + (editingId ? "Guardar cambios" : "Guardar gasto") + '</button>' +
+      '<button class="btn save-btn" id="saveBtn">' + (editingId ? "Guardar cambios" : "Guardar") + '</button>' +
       '</div>';
 
     document.getElementById("modal").classList.remove("hidden");
+
+    // Interruptor Gasto/Ingreso
+    document.getElementById("kindToggle").addEventListener("click", function (ev) {
+      var b = ev.target.closest("[data-kind]");
+      if (!b) return;
+      formKind = b.getAttribute("data-kind");
+      var ing = formKind === "ingreso";
+      this.querySelector('[data-kind="gasto"]').className = ing ? "" : "on-gasto";
+      this.querySelector('[data-kind="ingreso"]').className = ing ? "on-ingreso" : "";
+      document.getElementById("catField").style.display = ing ? "none" : "";
+    });
 
     document.getElementById("catGrid").addEventListener("click", function (ev) {
       var b = ev.target.closest(".cat-chip");
@@ -835,15 +952,18 @@ body { background: var(--bg); }
     }
     var note = document.getElementById("fNote").value.trim();
     var date = document.getElementById("fDate").value || todayISO();
+    var esIngreso = formKind === "ingreso";
+    var catFinal = esIngreso ? "otros" : formCat; // los ingresos no usan categoría de gasto
+    var palabra = esIngreso ? "Ingreso" : "Gasto";
 
     if (editingId) {
       var ex = expenses.find(function (x) { return x.id === editingId; });
-      if (ex) { ex.amount = amt; ex.categoryId = formCat; ex.note = note; ex.date = date; }
-      saveExpense(ex).then(function() { toast("Gasto actualizado ✓"); });
+      if (ex) { ex.amount = amt; ex.categoryId = catFinal; ex.note = note; ex.date = date; ex.kind = formKind; }
+      saveExpense(ex).then(function() { toast(palabra + " actualizado ✓"); });
     } else {
-      var newExp = { id: uid(), amount: amt, categoryId: formCat, note: note, date: date, createdAt: Date.now() };
+      var newExp = { id: uid(), amount: amt, categoryId: catFinal, note: note, date: date, kind: formKind, createdAt: Date.now() };
       expenses.push(newExp);
-      saveExpense(newExp).then(function() { toast("Gasto guardado ✓"); });
+      saveExpense(newExp).then(function() { toast(palabra + " guardado ✓"); });
     }
     var d = new Date(date + "T00:00:00");
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
@@ -1202,10 +1322,10 @@ body { background: var(--bg); }
   // ---------- CSV export ----------
   function exportCSV() {
     if (expenses.length === 0) { toast("No hay nada que exportar"); return; }
-    var rows = [["Fecha", "Categoria", "Tipo", "Concepto", "Importe_EUR"]];
+    var rows = [["Fecha", "Tipo_mov", "Categoria", "Tipo", "Concepto", "Importe_EUR"]];
     expenses.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (e) {
       var c = cat(e.categoryId);
-      rows.push([e.date, c.label, c.type, (e.note || "").replace(/"/g, "'"), String(e.amount).replace(".", ",")]);
+      rows.push([e.date, (e.kind === "ingreso" ? "ingreso" : "gasto"), c.label, c.type, (e.note || "").replace(/"/g, "'"), String(e.amount).replace(".", ",")]);
     });
     var csv = rows.map(function (r) {
       return r.map(function (cell) { return '"' + cell + '"'; }).join(";");
@@ -1242,6 +1362,7 @@ body { background: var(--bg); }
     });
     document.getElementById("tabResumen").addEventListener("click", function () { view = "resumen"; render(); });
     document.getElementById("tabMov").addEventListener("click", function () { view = "movimientos"; render(); });
+    document.getElementById("tabEvol").addEventListener("click", function () { view = "evolucion"; render(); });
     document.getElementById("addBtn").addEventListener("click", function () { openModal({}); });
     document.getElementById("pasteBtn").addEventListener("click", openPasteSheet);
     document.getElementById("scanInput").addEventListener("change", function (ev) {
@@ -1270,7 +1391,7 @@ body { background: var(--bg); }
       if (ci) {
         var id = ci.getAttribute("data-id");
         var e = expenses.find(function (x) { return x.id === id; });
-        if (e) openModal({ id: e.id, amount: e.amount, categoryId: e.categoryId, note: e.note, date: e.date });
+        if (e) openModal({ id: e.id, amount: e.amount, categoryId: e.categoryId, note: e.note, date: e.date, kind: e.kind });
         return;
       }
       // Editar desde la lista de movimientos
@@ -1278,7 +1399,7 @@ body { background: var(--bg); }
       if (!it) return;
       var id2 = it.getAttribute("data-id");
       var e2 = expenses.find(function (x) { return x.id === id2; });
-      if (e2) openModal({ id: e2.id, amount: e2.amount, categoryId: e2.categoryId, note: e2.note, date: e2.date });
+      if (e2) openModal({ id: e2.id, amount: e2.amount, categoryId: e2.categoryId, note: e2.note, date: e2.date, kind: e2.kind });
     });
   }
 
