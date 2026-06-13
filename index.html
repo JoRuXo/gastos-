@@ -762,31 +762,49 @@ body { background: var(--bg); }
     content.innerHTML = html;
   }
 
-  // ---------- Render: evolución (comparar meses desde el 20 mayo 2026) ----------
-  var ETAPA_INICIO = "2026-05"; // mes en que empezó la etapa en Holanda
+  // ---------- Render: evolución (España antes / etapa Holanda desde 20 mayo 2026) ----------
+  var ETAPA_INICIO = "2026-05-20"; // fecha de llegada a Holanda
 
   function renderEvolucion() {
     var content = document.getElementById("content");
-    // Agrupar por mes desde el inicio de la etapa
+
+    // Separar en dos etapas por fecha exacta
+    var antes = { ingresos: 0, gastos: 0, n: 0 };
     var meses = {};
     expenses.forEach(function (e) {
-      var mk = (e.date || "").slice(0, 7);
-      if (!mk || mk < ETAPA_INICIO) return;
-      if (!meses[mk]) meses[mk] = { ingresos: 0, gastos: 0 };
-      if (e.kind === "ingreso") meses[mk].ingresos += (e.amount || 0);
-      else meses[mk].gastos += (e.amount || 0);
+      var f = e.date || "";
+      if (!f) return;
+      if (f < ETAPA_INICIO) {
+        if (e.kind === "ingreso") antes.ingresos += (e.amount || 0); else antes.gastos += (e.amount || 0);
+        antes.n++;
+      } else {
+        var mk = f.slice(0, 7);
+        if (!meses[mk]) meses[mk] = { ingresos: 0, gastos: 0 };
+        if (e.kind === "ingreso") meses[mk].ingresos += (e.amount || 0);
+        else meses[mk].gastos += (e.amount || 0);
+      }
     });
     var claves = Object.keys(meses).sort();
-    if (claves.length === 0) {
+
+    if (claves.length === 0 && antes.n === 0) {
       content.innerHTML = '<div class="card"><div class="empty"><div class="big">📊</div>' +
-        '<p>Aún no hay movimientos desde mayo de 2026.</p>' +
+        '<p>Aún no hay movimientos registrados.</p>' +
         '<p class="hint">Cuando metas gastos e ingresos verás aquí la comparación mes a mes.</p></div></div>';
       return;
     }
+
+    function bloqueTotales(titulo, sub, ing, gas) {
+      var queda = ing - gas;
+      return '<div class="card"><h3>' + titulo + (sub ? ' <span style="font-size:11px;font-weight:400;color:var(--faint);font-family:\'Hanken Grotesk\',sans-serif">· ' + sub + '</span>' : '') + '</h3>' +
+        '<div style="display:flex;gap:10px">' +
+        '<div style="flex:1;background:var(--primary-soft);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Ingresos</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:var(--primary)">' + eurShort(ing) + '</div></div>' +
+        '<div style="flex:1;background:var(--accent-soft);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Gastos</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:var(--accent)">' + eurShort(gas) + '</div></div>' +
+        '<div style="flex:1;background:var(--bg2);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Queda</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:' + (queda < 0 ? "var(--danger)" : "var(--primary)") + '">' + eurShort(queda) + '</div></div>' +
+        '</div></div>';
+    }
+
     var maxVal = 0;
     claves.forEach(function (k) { maxVal = Math.max(maxVal, meses[k].ingresos, meses[k].gastos); });
-
-    // Totales acumulados de toda la etapa
     var totIng = 0, totGas = 0;
     claves.forEach(function (k) { totIng += meses[k].ingresos; totGas += meses[k].gastos; });
 
@@ -794,20 +812,19 @@ body { background: var(--bg); }
       var m = meses[k];
       var queda = m.ingresos - m.gastos;
       var nombreMes = monthName(parseInt(k.slice(5, 7), 10) - 1);
+      var etiqueta = (k === "2026-05") ? nombreMes + " (desde el 20)" : nombreMes;
       var pctIng = maxVal > 0 ? (m.ingresos / maxVal * 100) : 0;
       var pctGas = maxVal > 0 ? (m.gastos / maxVal * 100) : 0;
       return '<div style="margin-bottom:18px">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">' +
-        '<span style="font-size:13.5px;font-weight:600;text-transform:capitalize">' + nombreMes + '</span>' +
+        '<span style="font-size:13.5px;font-weight:600;text-transform:capitalize">' + etiqueta + '</span>' +
         '<span style="font-size:13px;font-weight:600;color:' + (queda < 0 ? "var(--danger)" : "var(--primary)") + '">' +
         (queda >= 0 ? "+" : "") + eur(queda) + '</span></div>' +
-        // barra ingresos
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">' +
         '<span style="font-size:10px;color:var(--muted);width:54px">Ingresos</span>' +
         '<div style="flex:1;height:14px;background:var(--bg2);border-radius:5px;overflow:hidden">' +
         '<div style="height:100%;width:' + pctIng.toFixed(1) + '%;background:#14543C;border-radius:5px"></div></div>' +
         '<span style="font-size:11.5px;font-weight:600;width:64px;text-align:right">' + eurShort(m.ingresos) + '</span></div>' +
-        // barra gastos
         '<div style="display:flex;align-items:center;gap:8px">' +
         '<span style="font-size:10px;color:var(--muted);width:54px">Gastos</span>' +
         '<div style="flex:1;height:14px;background:var(--bg2);border-radius:5px;overflow:hidden">' +
@@ -816,15 +833,14 @@ body { background: var(--bg); }
         '</div>';
     }).join("");
 
-    var totQueda = totIng - totGas;
-    content.innerHTML =
-      '<div class="card"><h3>Mi etapa en Holanda <span style="font-size:11px;font-weight:400;color:var(--faint);font-family:\'Hanken Grotesk\',sans-serif">· desde el 20 de mayo</span></h3>' +
-      '<div style="display:flex;gap:10px;margin-bottom:18px">' +
-      '<div style="flex:1;background:var(--primary-soft);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Ingresos</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:var(--primary)">' + eurShort(totIng) + '</div></div>' +
-      '<div style="flex:1;background:var(--accent-soft);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Gastos</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:var(--accent)">' + eurShort(totGas) + '</div></div>' +
-      '<div style="flex:1;background:var(--bg2);border-radius:12px;padding:11px 12px"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Queda</div><div style="font-family:\'Fraunces\',serif;font-size:17px;font-weight:600;color:' + (totQueda < 0 ? "var(--danger)" : "var(--primary)") + '">' + eurShort(totQueda) + '</div></div>' +
-      '</div></div>' +
-      '<div class="card"><h3>Mes a mes</h3>' + barras + '</div>';
+    var html = "";
+    html += bloqueTotales("Mi etapa en Holanda", "desde el 20 de mayo", totIng, totGas);
+    if (claves.length > 0) html += '<div class="card"><h3>Mes a mes</h3>' + barras + '</div>';
+    // Bloque España (antes de venir), separado y más discreto
+    if (antes.n > 0) {
+      html += bloqueTotales("Antes de venir", "España, hasta el 19 de mayo · " + antes.n + " mov.", antes.ingresos, antes.gastos);
+    }
+    content.innerHTML = html;
   }
 
   function emptyState() {
@@ -1121,19 +1137,24 @@ body { background: var(--bg); }
     var nUnclear = newItems.filter(function (x) { return x.categoryId === "sin_clasificar"; }).length;
 
     function buildRow(x, i, isDup) {
-      var unclear = !isDup && x.categoryId === "sin_clasificar";
+      var esIngreso = x.kind === "ingreso";
+      var unclear = !isDup && !esIngreso && x.categoryId === "sin_clasificar";
       var cls = isDup ? " dup" : (unclear ? " unclear" : "");
-      return '<div class="rev-row' + cls + '" data-i="' + i + '" data-dup="' + (isDup ? "1" : "0") + '">' +
+      return '<div class="rev-row' + cls + '" data-i="' + i + '" data-dup="' + (isDup ? "1" : "0") + '" data-kind="' + (esIngreso ? "ingreso" : "gasto") + '">' +
         (isDup
           ? '<div class="dup-badge">✓ ya guardado</div>'
-          : (unclear ? '<div class="rev-flag">⚠ No sé de qué es — corrígelo</div>' : '')) +
+          : (esIngreso
+              ? '<div class="dup-badge" style="background:var(--primary-soft);color:var(--primary)">💰 Ingreso</div>'
+              : (unclear ? '<div class="rev-flag">⚠ No sé de qué es — corrígelo</div>' : ''))) +
         (!isDup ? '<button class="rev-del" data-del="' + i + '">×</button>' : '') +
         '<div class="rev-top">' +
         '<input class="rev-concept" data-f="note" placeholder="¿De qué es?" value="' + esc(x.note) + '"' + (isDup ? ' readonly' : '') + '>' +
         '<input class="rev-amt" data-f="amount" inputmode="decimal" value="' + String(x.amount).replace(".", ",") + '"' + (isDup ? ' readonly' : '') + '>' +
         '</div>' +
         '<div class="rev-line2">' +
-        '<select data-f="cat"' + (isDup ? ' disabled' : '') + '>' + catOptions(x.categoryId) + '</select>' +
+        (esIngreso
+          ? '<div style="flex:1;font-size:12.5px;color:var(--muted);padding:9px 2px">Entrada de dinero (sin categoría)</div>'
+          : '<select data-f="cat"' + (isDup ? ' disabled' : '') + '>' + catOptions(x.categoryId) + '</select>') +
         '<input class="rev-date" data-f="date" type="date" value="' + esc(x.date) + '"' + (isDup ? ' readonly' : '') + '>' +
         '</div>' +
         (isDup ? '<button class="force-add-btn" data-force="1">Añadir igualmente</button>' : '') +
@@ -1219,11 +1240,13 @@ body { background: var(--bg); }
       if (isNaN(amt) || amt <= 0) return;
       var dt = row.querySelector('[data-f="date"]').value || todayISO();
       lastDate = dt;
+      var esIngreso = row.getAttribute("data-kind") === "ingreso";
+      var catSel = row.querySelector('[data-f="cat"]');
       var exp = {
         id: uid(), amount: amt,
-        categoryId: row.querySelector('[data-f="cat"]').value,
+        categoryId: esIngreso ? "otros" : (catSel ? catSel.value : "sin_clasificar"),
         note: row.querySelector('[data-f="note"]').value.trim(),
-        date: dt, createdAt: Date.now()
+        date: dt, kind: esIngreso ? "ingreso" : "gasto", createdAt: Date.now()
       };
       expenses.push(exp);
       toSave.push(exp);
@@ -1233,7 +1256,7 @@ body { background: var(--bg); }
     viewYear = d.getFullYear(); viewMonth = d.getMonth();
     // Guardar todos de golpe en Supabase
     var rows2save = toSave.map(function(exp) {
-      return { id: exp.id, amount: exp.amount, category_id: exp.categoryId, note: exp.note || "", date: exp.date };
+      return { id: exp.id, amount: exp.amount, category_id: exp.categoryId, note: exp.note || "", date: exp.date, kind: exp.kind };
     });
     sb.from("gastos").upsert(rows2save).then(function(res) {
       if (res.error) { console.error("addAllFromReview", res.error); toast("Error al guardar 😕"); return; }
@@ -1270,6 +1293,12 @@ body { background: var(--bg); }
       line = line.trim();
       if (!line || /^fecha\b/i.test(line)) return;
       var parts = line.split(/[;\t|]/).map(function (s) { return s.trim(); });
+      // Detectar y separar el tipo (gasto/ingreso) si viene en la línea
+      var kind = "gasto";
+      var lc = parts.map(function (p) { return p.toLowerCase(); });
+      var ki = lc.indexOf("ingreso");
+      if (ki > -1) { kind = "ingreso"; parts.splice(ki, 1); }
+      else { var kg = lc.indexOf("gasto"); if (kg > -1) parts.splice(kg, 1); }
       var date = null, catId = null, amount = NaN, note = "";
       if (parts.length >= 4) {
         date = parts[0]; catId = parts[1]; amount = parseAmount(parts[2]); note = parts.slice(3).join(" ");
@@ -1287,7 +1316,8 @@ body { background: var(--bg); }
         amount: Math.abs(amount),
         date: (date && /\d{4}-\d{2}-\d{2}/.test(date)) ? date : todayISO(),
         note: note || "",
-        categoryId: (catId && CAT_MAP[catId]) ? catId : "sin_clasificar"
+        kind: kind,
+        categoryId: kind === "ingreso" ? "otros" : ((catId && CAT_MAP[catId]) ? catId : "sin_clasificar")
       });
     });
     return out;
@@ -1310,7 +1340,7 @@ body { background: var(--bg); }
       if (list.length === 0) { document.getElementById("pasteErr").style.display = "block"; return; }
       if (list.length === 1) {
         var x = list[0];
-        openModal({ amount: x.amount, date: x.date, note: x.note, categoryId: x.categoryId,
+        openModal({ amount: x.amount, date: x.date, note: x.note, categoryId: x.categoryId, kind: x.kind,
           statusHTML: '<div class="scan-status" style="background:#E2EDE6;color:#14543C"><div>✓ Revisa y guarda.</div></div>' });
       } else {
         openMultiReview(list);
